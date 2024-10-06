@@ -14,11 +14,27 @@ const db = new pg.Client({
 });
 
 db.connect();
+
 db.query("SELECT * FROM staff", (err, res) => {
   if (err) {
     console.log(err);
   } else {
     console.log(res.rows);
+  }
+});
+router.post("/signup", async (req, res, next) => {
+  const { username, password, role } = req.body;
+  if (!username || !password || !role) {
+    return res.status(400).json({ error: "All fields are required" });
+  }
+  try {
+    const query =
+      "INSERT INTO admin_credentials(username,password,role) VALUES($1,$2,$3) RETURNING *";
+    const values = [username, password, role];
+    const result = await db.query(query, values);
+    res.status(200).json(result.rows[0]);
+  } catch (err) {
+    next(err);
   }
 });
 router.post("/addStaff", checkAdmin, async (req, res, next) => {
@@ -30,9 +46,9 @@ router.post("/addStaff", checkAdmin, async (req, res, next) => {
       res.status(400).send("Username is required");
     } else if (!role) {
       res.status(400).send("Role is required");
-    } /*else if (!password) {
+    } else if (!password) {
       res.status(400).send("Password is required");
-    } */ else {
+    } else {
       const query =
         "INSERT INTO staff(name,username,role,classInCharge,password) VALUES($1,$2,$3,$4,$5) RETURNING *";
       const values = [name, username, role, classInCharge, password];
@@ -69,7 +85,7 @@ function checkAdmin(req, res, next) {
   const password = db.query("SELECT password FROM staff WHERE username=$1", [
     req.body.username,
   ]);
-  if (ROLE !== "admin" /*|| password !== req.body.password*/) {
+  if (ROLE !== "admin" || password !== req.body.password) {
     res.status(401).send("Unauthorized");
   } else {
     next();

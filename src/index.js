@@ -3,7 +3,7 @@ const app = express();
 const adminRoutes = require("./routes/admin");
 const studentRoutes = require("./routes/student");
 const staffRoutes = require("./routes/staff");
-const port = 3000;
+const port = 3600;
 const pg = require("pg");
 const db = new pg.Client({
   user: "nikhiltomy",
