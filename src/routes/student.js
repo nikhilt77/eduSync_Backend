@@ -29,7 +29,7 @@ router.get("/viewStudents/:classno", async (req, res, next) => {
   const { regino, name, classNo, dob, phone } = req.body;
   try {
     const query =
-      "SELECT name,regi_no FROM student WHERE classno=$1 ORDER BY regi_no";
+      "SELECT name,register_no FROM student WHERE class=$1 ORDER BY register_no";
     const result = await db.query(query, [classno]);
     res.status(200).json(result.rows);
   } catch (err) {
@@ -42,7 +42,7 @@ router.get(
   async (req, res, next) => {
     const regi_no = req.params.regi_no;
     try {
-      const query = "SELECT * FROM student WHERE regi_no=$1";
+      const query = "SELECT * FROM student WHERE register_no=$1";
       const result = await db.query(query, [regi_no]);
       res.status(200).json(result.rows);
     } catch (err) {
@@ -59,7 +59,7 @@ async function validateStudent(req, res, next) {
 
   try {
     const result = await db.query(
-      "SELECT password FROM student WHERE regi_no=$1",
+      "SELECT * FROM $1",
       [regi_no],
     );
 
