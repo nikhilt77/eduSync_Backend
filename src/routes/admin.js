@@ -39,7 +39,7 @@ router.post("/signup", async (req, res, next) => {
 });
 router.post("/addStaff", checkAdmin, async (req, res, next) => {
   try {
-    const { name, username, role, classInCharge, password } = req.body;
+    const { name, role, classInCharge, password } = req.body;
     if (!name) {
       res.status(400).send("Name is required");
     } else if (!username) {
@@ -50,8 +50,8 @@ router.post("/addStaff", checkAdmin, async (req, res, next) => {
       res.status(400).send("Password is required");
     } else {
       const query =
-        "INSERT INTO staff(name,username,role,classInCharge,password) VALUES($1,$2,$3,$4,$5) RETURNING *";
-      const values = [name, username, role, classInCharge, password];
+        "INSERT INTO public.staff(name, in_charge_of, course_charges, password) VALUES ($1,$2,$3,$4) RETURNING *";
+      const values = [name, classInCharge, role, password];
       const result = await db.query(query, values);
       res.status(200).send(result.rows[0]);
       res.redirect("/addStaff");
@@ -72,7 +72,7 @@ router.get("/viewStaff", checkAdmin, async (req, res, next) => {
 router.get("/viewStaffAdvisor", checkAdmin, async (req, res, next) => {
   try {
     const result = await db.query(
-      "SELECT * FROM staff WHERE classInCharge IS NOT NULL",
+      "SELECT * FROM staff WHERE in_charge_of IS NOT NULL",
     );
     res.status(200).send(result.rows);
     res.redirect("/viewStaffAdvisor");
@@ -82,7 +82,7 @@ router.get("/viewStaffAdvisor", checkAdmin, async (req, res, next) => {
 });
 function checkAdmin(req, res, next) {
   const ROLE = req.body.role;
-  const password = db.query("SELECT password FROM staff WHERE username=$1", [
+  const password = db.query("SELECT password FROM staff WHERE staff_no=$1", [
     req.body.username,
   ]);
   if (ROLE !== "admin" || password !== req.body.password) {
