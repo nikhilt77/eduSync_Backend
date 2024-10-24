@@ -6,11 +6,11 @@ const jwt = require("jsonwebtoken");
 require("dotenv").config();
 
 const db = new pg.Client({
-  user: "nikhiltomy",
-  password: "test",
+  user: process.env.username,
+  password: process.env.password,
   host: "localhost",
   port: 5432,
-  database: "edusync",
+  database: "eduSync",
 });
 
 db.connect();
@@ -38,7 +38,7 @@ router.get("/", authenticateToken, (req, res) => {
   res.send("GET /student");
 });
 router.post("/login", async (req, res) => {
-  const { regi_no, name, classno, dob, phone_number, password } = req.body;
+  const { regi_no, password } = req.body;
 
   try {
     const result = await db.query(
@@ -74,8 +74,15 @@ router.get(
     const register_no = req.params.register_no;
 
     try {
+      const className = "SELECT class from student where register_no=$1";
+      const classResult = await db.query(className, [register_no]);
+      const studentClass = classResult.rows[0].class;
+      const tableName = "attendence_" + studentClass;
+
       const query =
-        "SELECT date_of_att, hours, day FROM attendence_cs5c WHERE register_no = $1";
+        "SELECT date_of_att, hours, day FROM " +
+        tableName +
+        " WHERE register_no=$1";
       const values = [register_no];
 
       const result = await db.query(query, values);
@@ -99,7 +106,10 @@ router.get(
   authenticateToken,
   async (req, res, next) => {
     //const register_no = req.user.register_no; // Extracting register_no from the token
-
+    const register_no = req.user.register_no;
+    const classN = "SELECT class from student where register_no=$1";
+    const classNa = await db.query(classN, [register_no]);
+    const className = classNa.rows[0].class;
     try {
       const query = `
       SELECT
@@ -110,13 +120,13 @@ router.get(
         am.award_marks,
         am.total_marks
       FROM
-        assignment_cs5c a
+        assignment_${className} a
       LEFT JOIN
-        assignment_marks_cs5c am
+        assignment_marks_${className} am
       ON
         a.assignment_no = am.assignment_no
 
-      ORDER BY a.assignment_no;  -- Optional: Order results by assignment number
+      ORDER BY a.assignment_no;
     `;
       //const values = [register_no]; // Register number to filter marks
 
@@ -127,7 +137,30 @@ router.get(
     }
   },
 );
+router.get(
+  "viewRemainingAssignments",
+  authenticateToken,
+  async (req, res, next) => {
+    const register_no = req.user.register_no;
+    const classN = "SELECT class from student where register_no=$1";
+    const classNa = await db.query(classN, [register_no]);
+    const className = classNa.rows[0].class;
+    try {
+      const query = `SELECT am.assignment_no,a.description,a.due_date,am.total_marks FROM assignment_${className} a
+        LEFT JOIN assignment_marks_${className} am
+        ON a.assignment_no=am.assignment_no
+        WHERE am.register_no=$1 AND am.award_marks IS NULL
+        ORDER BY a.assignment_no;`;
 
+      const values = [register_no];
+      const result = await db.query(query, values);
+      res.status(200).json(result.rows);
+    } catch (err) {
+      next(err);
+      res.redirect("/viewRemainingAssignments");
+    }
+  },
+);
 router.get(
   "/viewStudents/:classno",
   authenticateToken,
@@ -163,9 +196,13 @@ router.get(
 
 router.get("/viewSchedule", authenticateToken, async (req, res, next) => {
   try {
+    const register_no = req.user.register_no;
+    const classN = "SELECT class from student where register_no=$1";
+    const classNa = await db.query(classN, [register_no]);
+    const className = classNa.rows[0].class;
     const query = `
       SELECT day, hours
-      FROM schedule_cs5c
+      FROM schedule_${className}
       ;
     `;
     const result = await db.query(query);
@@ -224,3 +261,5 @@ async function checkStudent(req, res, next) {
 }
 
 module.exports = router;
+
+// I hope this shit works
