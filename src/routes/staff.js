@@ -95,7 +95,7 @@ router.post("/addStudent", authenticateToken, async (req, res, next) => {
   }
 });
 
-router.post("/deleteStudent", authenticateToken, async (req, res, next) => {
+router.delete("/deleteStudent", authenticateToken, async (req, res, next) => {
   try {
     const { register_no } = req.body;
     if (!register_no) {
@@ -116,7 +116,7 @@ router.post("/deleteStudent", authenticateToken, async (req, res, next) => {
   }
 });
 
-router.put("/updateStudent", authenticateToken, async (req, res, next) => {
+router.put("/updateStudent", authenticateToken, async (req, res, next) => {   //first call getStudentById, make changes ,then redirect to updateStudent
   try {
     const { name, studentClass, date_of_birth, phone_number, register_no } = req.body;
     if (!name) {
@@ -145,7 +145,7 @@ router.put("/updateStudent", authenticateToken, async (req, res, next) => {
 
 router.get("/viewSchedule", authenticateToken, async (req, res, next) => {
   try {
-    const { className } = req.body;
+    const { className } = req.body;    //input the class name whose schedule is to be viewed
     const tableName = `schedule_${className}`;
     const result = await db.query(`SELECT * FROM ${tableName}`);
     if (result.rows.length === 0) {
@@ -218,8 +218,8 @@ router.post('/giveAssignment', authenticateToken, async (req, res) => {
   if (!className || !description || !marks || !dueDate || !staff_no || !course_no) {
     return res.status(400).send('Missing required fields');
   }
-  const tableName = `assignment_${className}`;
-  const markstableName = `assignment_marks_${className}`;
+  const tableName = `assignment_${className}`;    //table for assignmemts
+  const markstableName = `assignment_marks_${className}`;    //table for assignment marks
   try {
     // Create table if it doesn't exist
     const createTableQuery = `
@@ -243,7 +243,7 @@ router.post('/giveAssignment', authenticateToken, async (req, res) => {
 
     // Fetch all students in the class and set their marks to NULL
     const fetchStudentsQuery = `
-      SELECT register_no FROM student WHERE class = $1;
+      SELECT register_no FROM student WHERE class = $1 order by name;
     `;
     const studentsResult = await db.query(fetchStudentsQuery, [className]);
 
@@ -283,7 +283,7 @@ router.get('/getAssignmentByClass', authenticateToken, async (req, res) => {
   }
 });
 
-router.post('/deleteAssignment', authenticateToken, async (req, res) => {
+router.delete('/deleteAssignment', authenticateToken, async (req, res) => {
   const { className, assignment_no } = req.body;
   if (!className || !assignment_no) {
     return res.status(400).send('Missing required fields');
@@ -307,47 +307,21 @@ router.post('/deleteAssignment', authenticateToken, async (req, res) => {
 });
 
 router.post('/markAssignment', authenticateToken, async (req, res) => {
-  const { className, assignment_no, register_no, award_marks, total_marks } = req.body;
-  if (!className || !assignment_no || !register_no || !award_marks || !total_marks) {
-    return res.status(400).send('Missing required fields');
+  const { className, assignment_no, marks } = req.body;
+  if (!className || !assignment_no || !marks || !Array.isArray(marks)) {
+    return res.status(400).send('Missing required fields or invalid marks format');
   }
   const markstableName = `assignment_marks_${className}`;
   try {
-    // Create table if it doesn't exist
-    const createTableQuery = `
-      CREATE TABLE IF NOT EXISTS ${tableName} (
-        assign_m_no SERIAL PRIMARY KEY,
-        assignment_no INTEGER,
-        register_no INTEGER,
-        total_marks INTEGER,
-        award_marks INTEGER
-      );
-    `;
-    await db.query(createTableQuery);
-
-    // Loop through each student and update the award marks if currently NULL
-    const fetchStudentsQuery = `
-      SELECT register_no FROM ${markstableName} WHERE assignment_no = $1 AND award_marks IS NULL;
-    `;
-    const studentsResult = await db.query(fetchStudentsQuery, [assignment_no]);
-
-    for (const student of studentsResult.rows) {
+    // Loop through each student's marks and update them
+    for (const { register_no, award_marks } of marks) {
       const updateQuery = `
-      UPDATE ${markstableName}
-      SET award_marks = $1
-      WHERE assignment_no = $2 AND register_no = $3 AND award_marks IS NULL;
+        UPDATE ${markstableName}
+        SET award_marks = $1
+        WHERE assignment_no = $2 AND register_no = $3;
       `;
-      await db.query(updateQuery, [award_marks, assignment_no, student.register_no]);
+      await db.query(updateQuery, [award_marks, assignment_no, register_no]);
     }
-
-   // Insert or update the marks for one student
-    const insertQuery = `
-      INSERT INTO ${tableName} (assignment_no, register_no, total_marks, award_marks)
-      VALUES ($1, $2, $3, $4)
-      ON CONFLICT (assignment_no, register_no)
-      DO UPDATE SET total_marks = EXCLUDED.total_marks, award_marks = EXCLUDED.award_marks;
-    `;
-    await db.query(insertQuery, [assignment_no, register_no, total_marks, award_marks]);
 
     res.status(200).send('Marks updated successfully');
   } catch (err) {
