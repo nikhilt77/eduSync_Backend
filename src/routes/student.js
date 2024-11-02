@@ -24,11 +24,10 @@ function authenticateToken(req, res, next) {
     return res.status(401).send("Token required");
   }
   console.log("Token received:", token);
-  console.log("JWT_SECRET during verification:", process.env.JWT_SECRET);
 
   jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
     if (err) return res.status(403).send("Invalid token");
-    req.user = user; // Attach user data from token to request
+    req.user = user;
     next();
   });
 }
@@ -38,12 +37,12 @@ router.get("/", authenticateToken, (req, res) => {
   res.send("GET /student");
 });
 router.post("/login", async (req, res) => {
-  const { regi_no, password } = req.body;
+  const { register_no, password } = req.body;
 
   try {
     const result = await db.query(
-      "SELECT password FROM student WHERE register_no=$1",
-      [regi_no],
+      `SELECT name,register_no,password FROM student WHERE register_no=$1`,
+      [register_no],
     );
     const user = result.rows[0];
 
@@ -74,24 +73,22 @@ router.get(
     const register_no = req.params.register_no;
 
     try {
-      const className = "SELECT class from student where register_no=$1";
+      const className =
+        "SELECT LOWER(class) AS class from student where register_no=$1";
       const classResult = await db.query(className, [register_no]);
       const studentClass = classResult.rows[0].class;
-      const tableName = "attendence_" + studentClass;
+      const tableName = `attendence_${studentClass}`;
 
-      const query =
-        "SELECT date_of_att, hours, day FROM " +
-        tableName +
-        " WHERE register_no=$1";
+      const query = `SELECT * FROM ${tableName} WHERE register_no=$1`;
       const values = [register_no];
 
       const result = await db.query(query, values);
-
+      console.log("Result:", result.rows);
       const attendanceData = result.rows.map((row) => ({
         att_id: row.att_id,
         date_of_att: row.date_of_att,
-        hours: row.hours,
-        day: row.day,
+        hour: row.hour !== null ? row.hour : "Not recorded",
+        day: row.day.replace(/\"/g, ""),
         //status: row.is_present ? "Present" : "Absent",
       }));
 
@@ -107,30 +104,31 @@ router.get(
   async (req, res, next) => {
     //const register_no = req.user.register_no; // Extracting register_no from the token
     const register_no = req.user.register_no;
-    const classN = "SELECT class from student where register_no=$1";
+    const classN =
+      "SELECT LOWER(class) AS class from student where register_no=$1";
     const classNa = await db.query(classN, [register_no]);
     const className = classNa.rows[0].class;
+    console.log("Class name:", className);
     try {
       const query = `
       SELECT
         a.assignment_no,
         a.description,
-        a.marks,
         a.due_date,
         am.award_marks,
-        am.total_marks
+        a.marks
       FROM
         assignment_${className} a
       LEFT JOIN
         assignment_marks_${className} am
       ON
-        a.assignment_no = am.assignment_no
+        a.assignment_no = am.assignment_no AND am.register_no = $1
 
       ORDER BY a.assignment_no;
     `;
       //const values = [register_no]; // Register number to filter marks
 
-      const result = await db.query(query /* , values*/);
+      const result = await db.query(query, [register_no]);
       res.status(200).json(result.rows);
     } catch (err) {
       next(err);
@@ -138,19 +136,30 @@ router.get(
   },
 );
 router.get(
-  "viewRemainingAssignments",
+  "/viewRemainingAssignments",
   authenticateToken,
   async (req, res, next) => {
     const register_no = req.user.register_no;
-    const classN = "SELECT class from student where register_no=$1";
+    const classN =
+      "SELECT LOWER(class) AS class from student where register_no=$1";
     const classNa = await db.query(classN, [register_no]);
     const className = classNa.rows[0].class;
     try {
-      const query = `SELECT am.assignment_no,a.description,a.due_date,am.total_marks FROM assignment_${className} a
-        LEFT JOIN assignment_marks_${className} am
-        ON a.assignment_no=am.assignment_no
-        WHERE am.register_no=$1 AND am.award_marks IS NULL
-        ORDER BY a.assignment_no;`;
+      const query = `SELECT
+                a.assignment_no,
+                a.description,
+                a.due_date,
+                a.marks AS total_marks
+              FROM
+                assignment_${className} a
+              LEFT JOIN
+                assignment_marks_${className} am
+              ON
+                a.assignment_no = am.assignment_no AND am.register_no = $1
+              WHERE
+                am.award_marks IS NULL
+              ORDER BY
+                a.assignment_no;`;
 
       const values = [register_no];
       const result = await db.query(query, values);
@@ -212,10 +221,12 @@ router.get(
 router.get("/viewSchedule", authenticateToken, async (req, res, next) => {
   try {
     const register_no = req.user.register_no;
-    const classN = "SELECT class from student where register_no=$1";
+    //console.log(register_no);
+    const classN = `SELECT class from student where register_no=$1`;
     const classNa = await db.query(classN, [register_no]);
-    if (classNa.rows.length == 0) {
-      res.status(404).send("No schedule found");
+    //console.log("Class", classNa.rows[0]);
+    if (classNa.rows.length === 0) {
+      return res.status(404).send("No schedule found");
     }
     const className = classNa.rows[0].class;
     const query = `
