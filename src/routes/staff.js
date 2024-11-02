@@ -518,6 +518,24 @@ router.get("/showClasses", authenticateToken, async (req, res) => {
   }
 });
 
+router.put("/changePassword", authenticateToken, async (req, res) => {
+  const staff_id = req.user.staff_id;
+  const newPassword = req.body.newPassword;
+  if (!newPassword) {
+    return res.status(400).send("Missing required fields");
+  }
+  try {
+    const result = await db.query(
+      "UPDATE staff SET password=$1 WHERE staff_id=$2",
+      [newPassword, staff_id],
+    );
+    res.status(200).send("Password changed successfully");
+  } catch (err) {
+    console.error("Error changing password:", err);
+    res.status(500).send("Server error");
+  }
+});
+
 router.post("/updateAttendance", authenticateToken, async (req, res) => {
   const { className, date_of_att, day, hour, course_no, attendance } = req.body;
   if (
@@ -582,6 +600,7 @@ async function checkAttendanceAuthorization(req, res, next) {
     return isAuthorized;
   } catch (error) {
     console.error("Error checking attendance authorization:", error);
+    next(err);
     throw error;
   }
 }
@@ -598,6 +617,7 @@ async function checkSchedule(req, res, next) {
   try {
     const result = await db.query(
       `SELECT hours FROM ${tableName} WHERE day=$1`,
+      [day],
     );
     if (result.rows.length === 0) {
       res.status(404).send("No schedule found for the given class");

@@ -177,7 +177,22 @@ router.get(
     }
   },
 );
-
+router.put("/changePassword", authenticateToken, async (req, res, next) => {
+  const register_no = req.user.register_no;
+  const newPassword = req.body.newPassword;
+  if (!newPassword) {
+    return res.status(400).send("New password is required");
+  }
+  try {
+    const result = await db.query(
+      `UPDATE student SET password=$1 WHERE register_no=$2`,
+      [newPassword, register_no],
+    );
+    res.status(200).send("Password changed successfully");
+  } catch (err) {
+    next(err);
+  }
+});
 router.get(
   "/viewStudentDetails/:register_no",
   authenticateToken,
