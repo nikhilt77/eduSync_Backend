@@ -121,7 +121,7 @@ router.post("/addStudent", authenticateToken, async (req, res, next) => {
         password,
       ];
       const result = await db.query(query, values);
-      res.status(200).send(result.rows[0]);
+      res.status(200).send("Student added successfully");
     }
   } catch (err) {
     next(err);
@@ -290,6 +290,7 @@ router.post("/addSchedule", authenticateToken, async (req, res) => {
 router.get(
   "/checkAttendance",
   checkAttendanceAuthorization,
+  checkSchedule,
   authenticateToken,
   async (req, res) => {
     const { className, date_of_att, day, hour, course_no } = req.body;
@@ -299,12 +300,26 @@ router.get(
     const tableName = `attendance_${className}`;
     try {
       const result = await db.query(
-        `CREATE TABLE IF NOT EXISTS ${tableName} (date_of_att DATE, day VARCHAR(10), register_no VARCHAR(25), course_no VARCHAR(25), hour INTEGER, att BOOLEAN, PRIMARY KEY (date_of_att, hour, register_no, course_no));`,
+        `SELECT * FROM ${tableName} WHERE date_of_att = $1 AND day = $2 AND hour = $3 AND course_no = $4`,
+        [date_of_att, day, hour, course_no],
       );
+
       if (result.rows.length === 0) {
-        res.status(404).send("No attendance found for the given class");
-      } else {
-        res.status(200).send(result.rows);
+        res
+          .status(404)
+          .send("No attendance found for the given class and date");
+        const result1 = await db.query(
+          `SELECT register_no FROM student WHERE class=$1`,
+          [className],
+        );
+
+        for (const row of result.rows) {
+          const result2 = await db.query(
+            `INSERT INTO ${tableName} (date_of_att, day, register_no, course_no, hour, att) VALUES ($1, $2, $3, $4, $5, $6)`,
+            [date_of_att, day, row.register_no, course_no, hour, true],
+          );
+          console.log(result2.rows);
+        }
       }
     } catch (err) {
       console.error("Error fetching attendance:", err);
@@ -570,4 +585,35 @@ async function checkAttendanceAuthorization(req, res, next) {
     throw error;
   }
 }
+async function checkSchedule(req, res, next) {
+  //const { className, course_no, hour ,day} = req.body;
+  const day = req.body.day;
+  const hour = req.body.hour;
+  const course_no = req.body.course_no;
+  const className = req.body.className;
+  if (!day || !course_no || !hour || !className) {
+    return res.status(400).send("Missing required fields");
+  }
+  const tableName = `schedule_${className}`;
+  try {
+    const result = await db.query(
+      `SELECT hours FROM ${tableName} WHERE day=$1`,
+    );
+    if (result.rows.length === 0) {
+      res.status(404).send("No schedule found for the given class");
+    } else {
+      if (result.rows[0].hours[hour - 1] === course_no) {
+        console.log("course is scheduled");
+        return true;
+      }
+      return false;
+    }
+  } catch (err) {
+    console.error("Error fetching schedule:", err);
+    res.status(500).send("Server error");
+    next();
+  }
+}
 module.exports = router;
+
+//I hope this shit works pt.😭2
