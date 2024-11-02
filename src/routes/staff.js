@@ -237,56 +237,81 @@ router.post("/addSchedule", authenticateToken, async (req, res) => {
     res.status(500).send("Server error");
   }
 });
-/*
-router.post('/markAttendance', authenticateToken, async (req, res) => {
-  const { className, date_of_att, day, hour, course_no, attendance } = req.body;
-  if (!className || !date_of_att || !day || !hour || !course_no || !attendance || !Array.isArray(attendance)) {
-    return res.status(400).send('Missing required fields or invalid attendance format');
-  }
-  const tableName = ⁠ attendance_${className} ⁠;
-  const scheduleTable = ⁠ schedule_${className} ⁠;
-  try {
-    // Check if the course exists in the schedule for the given day and hour
-    const scheduleQuery = `
-      SELECT hours FROM ${scheduleTable} WHERE day = $1;
-    `;
-    const scheduleResult = await db.query(scheduleQuery, [day]);
 
-    if (scheduleResult.rows.length === 0 || !scheduleResult.rows[0].hours[hour - 1] || scheduleResult.rows[0].hours[hour - 1] !== course_no) {
-      return res.status(400).send(⁠ No course scheduled for ${day} at hour ${hour} ⁠);
+// router.post('/markAttendance', authenticateToken, async (req, res) => {
+//   const  { className, date_of_att, day, hour, course_no, attendance } = req.body;
+//   if (!className || !date_of_att || !day || !hour || !course_no || !attendance || !Array.isArray(attendance)) {
+//     return res.status(400).send('Missing required fields or invalid attendance format');
+//   }
+//   let tableName = `attendance_${className}`;
+//   const scheduleTable = `schedule_${className}`;
+//   try {
+//     // Check if the course exists in the schedule for the given day and hour
+//     const scheduleQuery = `
+//       SELECT hours FROM ${scheduleTable} WHERE day = $1;
+//     `;
+//     const scheduleResult = await db.query(scheduleQuery, [day]);
+
+//     /*if (scheduleResult.rows.length === 0 || !scheduleResult.rows[0].hours[hour - 1] || scheduleResult.rows[0].hours[hour - 1] !== course_no) {
+//       return res.status(400).send(⁠ No course scheduled for ${day} at hour ${hour} ⁠);
+//       }*/
+
+//     // Create table if it doesn't exist
+//     const createTableQuery = `
+//       CREATE TABLE IF NOT EXISTS ${tableName} (
+//         date_of_att DATE,
+//         day VARCHAR(10),
+//         register_no VARCHAR(25),
+//         course_no VARCHAR(25),
+//         hour INTEGER,
+//         att BOOLEAN,
+//         PRIMARY KEY (date_of_att, hour, register_no, course_no)
+//       );
+//     `;
+//     await db.query(createTableQuery);
+
+//     // Loop through the attendance array and insert/update each student's attendance
+//     for (const { register_no, att } of attendance) {
+//       const insertQuery = `
+//         INSERT INTO ${tableName} (date_of_att, day, register_no, course_no, hour, att)
+//         VALUES ($1, $2, $3, $4, $5, $6)
+//         ON CONFLICT (date_of_att, hour, register_no, course_no)
+//         DO UPDATE SET att = EXCLUDED.att;
+//       `;
+//       await db.query(insertQuery, [date_of_att, day, register_no, course_no, hour, att]);
+//     }
+
+//     res.status(200).send('Attendance marked successfully');
+//   } catch (err) {
+//     console.error('Error marking attendance:', err);
+//     res.status(500).send('Server error');
+//   }
+// });
+router.get(
+  "/checkAttendance",
+  checkAttendanceAuthorization,
+  authenticateToken,
+  async (req, res) => {
+    const { className, date_of_att, day, hour, course_no } = req.body;
+    if (!className || !date_of_att || !day || !hour || !course_no) {
+      return res.status(400).send("Missing required fields");
     }
-
-    // Create table if it doesn't exist
-    const createTableQuery = `
-      CREATE TABLE IF NOT EXISTS ${tableName} (
-        date_of_att DATE,
-        day VARCHAR(10),
-        register_no VARCHAR(25),
-        course_no VARCHAR(25),
-        hour INTEGER,
-        att BOOLEAN,
-        PRIMARY KEY (date_of_att, hour, register_no, course_no)
+    const tableName = `attendance_${className}`;
+    try {
+      const result = await db.query(
+        `CREATE TABLE IF NOT EXISTS ${tableName} (date_of_att DATE, day VARCHAR(10), register_no VARCHAR(25), course_no VARCHAR(25), hour INTEGER, att BOOLEAN, PRIMARY KEY (date_of_att, hour, register_no, course_no));`,
       );
-    `;
-    await db.query(createTableQuery);
-
-    // Loop through the attendance array and insert/update each student's attendance
-    for (const { register_no, att } of attendance) {
-      const insertQuery = `
-        INSERT INTO ${tableName} (date_of_att, day, register_no, course_no, hour, att)
-        VALUES ($1, $2, $3, $4, $5, $6)
-        ON CONFLICT (date_of_att, hour, register_no, course_no)
-        DO UPDATE SET att = EXCLUDED.att;
-      `;
-      await db.query(insertQuery, [date_of_att, day, register_no, course_no, hour, att]);
+      if (result.rows.length === 0) {
+        res.status(404).send("No attendance found for the given class");
+      } else {
+        res.status(200).send(result.rows);
+      }
+    } catch (err) {
+      console.error("Error fetching attendance:", err);
+      res.status(500).send("Server error");
     }
-
-    res.status(200).send('Attendance marked successfully');
-  } catch (err) {
-    console.error('Error marking attendance:', err);
-    res.status(500).send('Server error');
-  }
-});*/
+  },
+);
 router.get("/getAttendance", authenticateToken, async (req, res) => {
   const { className } = req.body;
   if (!className) {
@@ -463,4 +488,32 @@ router.get("/getMarks", authenticateToken, async (req, res) => {
   }
 });
 
+async function checkAttendanceAuthorization(req, res, next) {
+  const staffId = req.user.id;
+  //const { classId, courseNo } = req.body;
+  try {
+    const query = `
+      SELECT course_charges
+      FROM staff
+      WHERE id = $1;
+    `;
+
+    const { rows } = await pool.query(query, [staffId]);
+    if (rows.length === 0) {
+      throw new Error("Staff member not found.");
+    }
+
+    const { course_charges } = rows[0];
+    const courseCharges = JSON.parse(course_charges);
+
+    // Check if the specified class exists in courseCharges and contains the courseNo
+    const isAuthorized =
+      courseCharges[classId] && courseCharges[classId].includes(courseNo);
+
+    return isAuthorized;
+  } catch (error) {
+    console.error("Error checking attendance authorization:", error);
+    throw error;
+  }
+}
 module.exports = router;
