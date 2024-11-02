@@ -9,11 +9,11 @@ const staffRoutes = require("./routes/staff");
 const port = process.env.port || 3600;
 const pg = require("pg");
 const db = new pg.Client({
-  user: "nikhiltomy",
-  password: "test",
+  user: process.env.username,
+  password: process.env.password,
   host: "localhost",
   port: 5432,
-  database: "student",
+  database: "eduSync",
 });
 
 try {

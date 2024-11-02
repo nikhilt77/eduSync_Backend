@@ -199,6 +199,9 @@ router.get("/viewSchedule", authenticateToken, async (req, res, next) => {
     const register_no = req.user.register_no;
     const classN = "SELECT class from student where register_no=$1";
     const classNa = await db.query(classN, [register_no]);
+    if (classNa.rows.length == 0) {
+      res.status(404).send("No schedule found");
+    }
     const className = classNa.rows[0].class;
     const query = `
       SELECT day, hours
