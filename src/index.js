@@ -11,9 +11,9 @@ const pg = require("pg");
 const db = new pg.Client({
   user: process.env.username,
   password: process.env.password,
-  host: "localhost",
+  host: process.env.host,
   port: 5432,
-  database: "eduSync",
+  database: process.env.database,
 });
 
 try {
