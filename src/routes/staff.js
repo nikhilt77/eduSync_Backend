@@ -313,15 +313,18 @@ router.get(
   },
 );
 router.get("/getAttendance", authenticateToken, async (req, res) => {
-  const { className } = req.body;
-  if (!className) {
+  const { className, date_of_att } = req.body;
+  if (!className || !date_of_att) {
     return res.status(400).send("Missing required fields");
   }
   const tableName = `attendance_${className}`;
   try {
-    const result = await db.query(`SELECT * FROM ${tableName}`);
+    const result = await db.query(
+      `SELECT * FROM ${tableName} WHERE date_of_att = $1`,
+      [date_of_att],
+    );
     if (result.rows.length === 0) {
-      res.status(404).send("No attendance found for the given class");
+      res.status(404).send("No attendance found for the given class and date");
     } else {
       res.status(200).send(result.rows);
     }
@@ -470,20 +473,71 @@ router.post("/markAssignment", authenticateToken, async (req, res) => {
 });
 
 router.get("/getMarks", authenticateToken, async (req, res) => {
-  const { className } = req.body;
-  if (!className) {
+  const { className, assignment_no } = req.body;
+  if (!className || !assignment_no) {
     return res.status(400).send("Missing required fields");
   }
   const tableName = `assignment_marks_${className}`;
   try {
-    const result = await db.query(`SELECT * FROM ${tableName}`);
+    const result = await db.query(
+      `SELECT * FROM ${tableName} WHERE assignment_no = $1`,
+      [assignment_no],
+    );
     if (result.rows.length === 0) {
-      res.status(404).send("No marks found for the given class");
+      res.status(404).send("No marks found for the given class and assignment");
     } else {
       res.status(200).send(result.rows);
     }
   } catch (err) {
     console.error("Error fetching marks:", err);
+    res.status(500).send("Server error");
+  }
+});
+
+router.get("/showClasses", authenticateToken, async (req, res) => {
+  const result = await db.query("SELECT * FROM class");
+  if (result.rows.length === 0) {
+    res.status(404).send("No classes found");
+  } else {
+    res.status(200).send(result.rows);
+  }
+});
+
+router.post("/updateAttendance", authenticateToken, async (req, res) => {
+  const { className, date_of_att, day, hour, course_no, attendance } = req.body;
+  if (
+    !className ||
+    !date_of_att ||
+    !day ||
+    !hour ||
+    !course_no ||
+    !attendance ||
+    !Array.isArray(attendance)
+  ) {
+    return res
+      .status(400)
+      .send("Missing required fields or invalid attendance format");
+  }
+  const tableName = `attendance_${className}`;
+  try {
+    // Loop through the attendance array and update each student's attendance
+    for (const { register_no, att } of attendance) {
+      const updateQuery = `
+        UPDATE ${tableName}
+        SET att = $1
+        WHERE date_of_att = $2 AND hour = $3 AND register_no = $4 AND course_no = $5;
+      `;
+      await db.query(updateQuery, [
+        att,
+        date_of_att,
+        hour,
+        register_no,
+        course_no,
+      ]);
+    }
+    res.status(200).send("Attendance updated successfully");
+  } catch (err) {
+    console.error("Error updating attendance:", err);
     res.status(500).send("Server error");
   }
 });
