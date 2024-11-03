@@ -9,7 +9,7 @@ router.get("/", (req, res) => {
 });
 
 const db = new pg.Client({
-  user: process.env.username,
+  user: process.env.postgresusername,
   password: process.env.password,
   host: process.env.host,
   port: 5432,
@@ -35,7 +35,7 @@ function authenticateToken(req, res, next) {
 router.post("/login", async (req, res) => {
   const { name, password } = req.body;
   const query = "SELECT * FROM staff WHERE name=$1 AND password=$2";
-  const values = [email, password];
+  const values = [name, password];
   const result = await db.query(query, values);
   if (result.rows.length === 0) {
     res.status(401).send("Invalid credentials");
@@ -44,11 +44,12 @@ router.post("/login", async (req, res) => {
     const token = jwt.sign(
       {
         name: user.name,
-        staff_id: user.staff_id,
+        //email: user.email,
+        staff_no: user.staff_no,
       },
       process.env.JWT_SECRET,
     );
-    res.status(200).send(token);
+    res.json(token);
   }
 });
 router.get("/getStudentByClass", authenticateToken, async (req, res, next) => {
@@ -68,13 +69,16 @@ router.get("/getStudentByClass", authenticateToken, async (req, res, next) => {
   }
 });
 
-router.get("/getStudentById", authenticateToken, async (req, res, next) => {
+router.post("/getStudentById", authenticateToken, async (req, res, next) => {
   try {
     const { register_no } = req.body;
-    const query =
-      "SELECT name, class, date_of_birth, phone_number, register_no FROM student WHERE register_no=$1";
+    if (!register_no) {
+      return res.status(400).send("Register number is required");
+    }
+    const query = "SELECT name, class, date_of_birth, phone_number, register_no FROM student WHERE register_no=$1";
     const values = [register_no];
     const result = await db.query(query, values);
+
     if (result.rows.length === 0) {
       res.status(404).send("Student not found");
     } else {
@@ -82,49 +86,37 @@ router.get("/getStudentById", authenticateToken, async (req, res, next) => {
     }
   } catch (err) {
     next(err);
-    res.redirect("/getStudentById");
   }
 });
 
-router.post("/addStudent", authenticateToken, async (req, res, next) => {
+router.post("/addStudents", authenticateToken, async (req, res, next) => {
   try {
-    const {
-      name,
-      studentClass,
-      date_of_birth,
-      phone_number,
-      register_no,
-      password,
-    } = req.body;
-    if (!name) {
-      res.status(400).send("Name is required");
-    } else if (!register_no) {
-      res.status(400).send("Register number is required");
-    } else if (!date_of_birth) {
-      res.status(400).send("Date of birth is required");
-    } else if (!phone_number) {
-      res.status(400).send("Phone number is required");
-    } else if (!register_no) {
-      res.status(400).send("Register number is required");
-    } else if (!password) {
-      res.status(400).send("Password is required");
-    } else {
-      const query =
-        "INSERT INTO student(name, class, date_of_birth, phone_number, register_no, password) VALUES($1, $2, $3, $4, $5, $6) RETURNING *";
-      const values = [
-        name,
-        studentClass,
-        date_of_birth,
-        phone_number,
-        register_no,
-        password,
-      ];
-      const result = await db.query(query, values);
-      res.status(200).send("Student added successfully");
+    const { studentClass, students } = req.body;
+    if (!studentClass) {
+      return res.status(400).send("Class is required");
     }
+    if (!Array.isArray(students) || students.length === 0) {
+      return res.status(400).send("Students array is required");
+    }
+
+    for (const student of students) {
+      const { name, date_of_birth, phone_number, register_no, password } = student;
+
+      if (!name || !date_of_birth || !phone_number || !register_no || !password) {
+        return res.status(400).send("All student fields are required");
+      }
+
+      const query = `
+        INSERT INTO student(name, class, date_of_birth, phone_number, register_no, password)
+        VALUES($1, $2, $3, $4, $5, $6)
+        RETURNING *`;
+      const values = [name, studentClass, date_of_birth, phone_number, register_no, password];
+      await db.query(query, values);
+    }
+
+    res.status(200).send("Students added successfully");
   } catch (err) {
     next(err);
-    res.redirect("/addStudent");
   }
 });
 
@@ -191,12 +183,13 @@ router.get("/viewSchedule", authenticateToken, async (req, res, next) => {
     const { className } = req.body; //input the class name whose schedule is to be viewed
     const tableName = `schedule_${className}`;
     const result = await db.query(`SELECT * FROM ${tableName}`);
-    if (result.rows.length === 0) {
+    if (result.rowCount === 0) {
       res.status(404).send("No schedule found for the given class");
     } else {
       res.status(200).send(result.rows);
     }
   } catch (err) {
+    res.status(500).send("No schedule found for the given class");
     next(err);
   }
 });
@@ -233,6 +226,22 @@ router.post("/addSchedule", authenticateToken, async (req, res) => {
       .send(`Schedule for class ${className} updated successfully`);
   } catch (err) {
     console.error("Error updating schedule:", err);
+    res.status(500).send("Server error");
+  }
+});
+
+router.delete("/deleteSchedule", authenticateToken, async (req, res) => {
+  const { className } = req.body;
+  if (!className) {
+    return res.status(400).send("Missing required fields");
+  }
+  const tableName = `schedule_${className}`;
+  try {
+    const deleteQuery = `DELETE FROM ${tableName}`;
+    await db.query(deleteQuery);
+    res.status(200).send(`Schedule for class ${className} deleted successfully`);
+  } catch (err) {
+    console.error("Error deleting schedule:", err);
     res.status(500).send("Server error");
   }
 });
