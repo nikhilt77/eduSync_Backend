@@ -204,7 +204,11 @@ router.post(
 
         ALTER TABLE IF EXISTS public.assignment_marks_${in_charge_of}
             OWNER to ${process.env.username};`;
-          const result6 = await db.query(query6);
+          try {
+            const result6 = await db.query(query6);
+          } catch (err) {
+            console.error("Error creating assignment_marks table:", err);
+          }
         }
       }
     } catch (err) {

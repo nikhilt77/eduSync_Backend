@@ -33,8 +33,8 @@ function authenticateToken(req, res, next) {
   });
 }
 router.post("/login", async (req, res) => {
-  const { email, password } = req.body;
-  const query = "SELECT * FROM staff WHERE email=$1 AND password=$2";
+  const { name, password } = req.body;
+  const query = "SELECT * FROM staff WHERE name=$1 AND password=$2";
   const values = [email, password];
   const result = await db.query(query, values);
   if (result.rows.length === 0) {
@@ -44,7 +44,6 @@ router.post("/login", async (req, res) => {
     const token = jwt.sign(
       {
         name: user.name,
-        email: user.email,
         staff_id: user.staff_id,
       },
       process.env.JWT_SECRET,
