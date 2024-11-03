@@ -30,7 +30,7 @@ function authenticateToken(req, res, next) {
   });
 }
 
-router.get("/login", async (req, res, next) => {
+router.post("/login", async (req, res, next) => {
   const { username, password } = req.body;
   try {
     const result = await db.query(
@@ -98,25 +98,41 @@ router.post(
       } else if (!password) {
         return res.status(400).send("Password is required");
       } else {
+        const existingStaffQuery = `
+                SELECT * FROM staff WHERE in_charge_of = $1
+              `;
+        const existingStaffResult = await db.query(existingStaffQuery, [
+          in_charge_of,
+        ]);
+
+        if (existingStaffResult.rows.length > 0) {
+          return res
+            .status(409)
+            .send(
+              "Staff member already exists with the same name and in-charge-of department",
+            );
+        }
         const query =
           "INSERT INTO staff(name,in_charge_of,course_charges,password) VALUES($1,$2,$3,$4) RETURNING *";
         const values = [name, in_charge_of, course_charges, password];
         const result = await db.query(query, values);
         res.status(200).send(result.rows[0]);
-        const query2 = "SELECT * FROM classes where class = $1";
+        const query2 = "SELECT * FROM cls where class_name = $1";
         const values2 = [in_charge_of];
         const result2 = await db.query(query2, values2);
         if (result2.rows.length === 0) {
+          const insertClassQuery = "INSERT INTO cls (class_name) VALUES ($1)";
+          await db.query(insertClassQuery, [in_charge_of]);
           const query3 = `CREATE TABLE IF NOT EXISTS public.schedule_${in_charge_of}
         (
             day character varying(10) COLLATE pg_catalog."default" NOT NULL,
             hours character varying(25)[] COLLATE pg_catalog."default",
-            CONSTRAINT schedule_pkey PRIMARY KEY (day)
+            CONSTRAINT schedule_${in_charge_of}_pkey PRIMARY KEY (day)
             )
             TABLESPACE pg_default;
 
             ALTER TABLE IF EXISTS public.schedule_${in_charge_of}
-                OWNER to $(process.env.username);`;
+                OWNER to ${process.env.username};`;
           const result3 = await db.query(query3);
           const query4 = `CREATE TABLE IF NOT EXISTS public.attendence_${in_charge_of}
         (
@@ -136,8 +152,9 @@ router.post(
         TABLESPACE pg_default;
 
         ALTER TABLE IF EXISTS public.attendence_${in_charge_of}
-            OWNER to $(process.env.username);`;
-          const query5 = `CREATE TABLE IF NOT EXISTS public.assignment_$(in_charge_of)
+            OWNER to ${process.env.username};`;
+          const result4 = await db.query(query4);
+          const query5 = `CREATE TABLE IF NOT EXISTS public.assignment_${in_charge_of}
         (
             assignment_no integer NOT NULL GENERATED ALWAYS AS IDENTITY ( INCREMENT 1 START 1 MINVALUE 1 MAXVALUE 2147483647 CACHE 1 ),
             description character varying(1000) COLLATE pg_catalog."default",
@@ -145,7 +162,7 @@ router.post(
             due_date date,
             staff_no integer NOT NULL,
             course_no character varying(25) COLLATE pg_catalog."default",
-            CONSTRAINT assignment_pkey PRIMARY KEY (assignment_no),
+            CONSTRAINT assignment_${in_charge_of}_pkey PRIMARY KEY (assignment_no),
             CONSTRAINT coursedetails FOREIGN KEY (course_no)
                 REFERENCES public.courses (course_no) MATCH SIMPLE
                 ON UPDATE NO ACTION
@@ -160,18 +177,19 @@ router.post(
 
         TABLESPACE pg_default;
 
-        ALTER TABLE IF EXISTS public.assignment_$(in_charge_of)
-            OWNER to $(process.env.username);`;
-          const query6 = `CREATE TABLE IF NOT EXISTS public.assignment_marks_$(in_charge_of)
+        ALTER TABLE IF EXISTS public.assignment_${in_charge_of}
+            OWNER to ${process.env.username};`;
+          const result5 = await db.query(query5);
+          const query6 = `CREATE TABLE IF NOT EXISTS public.assignment_marks_${in_charge_of}
         (
             assign_m_no integer NOT NULL GENERATED ALWAYS AS IDENTITY ( INCREMENT 1 START 1 MINVALUE 1 MAXVALUE 2147483647 CACHE 1 ),
             total_marks integer,
             award_marks integer,
             assignment_no integer,
             register_no character varying(25) COLLATE pg_catalog."default",
-            CONSTRAINT assignment_marks_$(in_charge_of)_pkey PRIMARY KEY (assign_m_no),
-            CONSTRAINT assignmnetdetails FOREIGN KEY (assignment_no)
-                REFERENCES public.assignment_$(in_charge_of) (assignment_no) MATCH SIMPLE
+            CONSTRAINT assignment_marks_${in_charge_of}_pkey PRIMARY KEY (assign_m_no),
+            CONSTRAINT assignmentdetails FOREIGN KEY (assignment_no)
+                REFERENCES public.assignment_${in_charge_of} (assignment_no) MATCH SIMPLE
                 ON UPDATE NO ACTION
                 ON DELETE CASCADE
                 NOT VALID,
@@ -184,8 +202,9 @@ router.post(
 
         TABLESPACE pg_default;
 
-        ALTER TABLE IF EXISTS public.assignment_marks_$(in_charge_of)
-            OWNER to process.env.username;`;
+        ALTER TABLE IF EXISTS public.assignment_marks_${in_charge_of}
+            OWNER to ${process.env.username};`;
+          const result6 = await db.query(query6);
         }
       }
     } catch (err) {
