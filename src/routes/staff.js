@@ -303,7 +303,7 @@ router.delete("/deleteSchedule", authenticateToken, async (req, res) => {
 // });
 router.post(
   "/checkAttendance",
-  checkAttendanceAuthorization,
+  checkAssignmentAuthorization,
   checkSchedule,
   authenticateToken,
   async (req, res) => {
@@ -311,8 +311,8 @@ router.post(
     if (!className || !date_of_att || !day || !hour || !course_no) {
       return res.status(400).send("Missing required fields");
     }
-    const tableName = `attendance_${className}`;
-    console.log(tableName)
+    const tableName = `attendence_${className}`;
+    console.log(tableName);
 
     try {
       const result = await db.query(
@@ -365,68 +365,73 @@ router.get("/getAttendance", authenticateToken, async (req, res) => {
   }
 });
 
-router.post("/giveAssignment", authenticateToken, checkAssignmentAuthorization, async (req, res) => {
-  const { className, description, marks, dueDate, course_no } = req.body;
-  if (!className) {
-    return res.status(400).send("Missing required field: className");
-  }
-  if (!description) {
-    return res.status(400).send("Missing required field: description");
-  }
-  if (!marks) {
-    return res.status(400).send("Missing required field: marks");
-  }
-  if (!dueDate) {
-    return res.status(400).send("Missing required field: dueDate");
-  }
-  if (!course_no) {
-    return res.status(400).send("Missing required field: course_no");
-  }
-  const tableName = `assignment_${className}`; // table for assignments
-  const marksTableName = `assignment_marks_${className}`; // table for assignment marks
-  console.log("table name:", tableName);
-  const staff_no = req.user.staff_no;
-  try {
-    // Insert the assignment and return the assignment number
-    const insertAssignmentQuery = `
+router.post(
+  "/giveAssignment",
+  authenticateToken,
+  checkAssignmentAuthorization,
+  async (req, res) => {
+    const { className, description, marks, dueDate, course_no } = req.body;
+    if (!className) {
+      return res.status(400).send("Missing required field: className");
+    }
+    if (!description) {
+      return res.status(400).send("Missing required field: description");
+    }
+    if (!marks) {
+      return res.status(400).send("Missing required field: marks");
+    }
+    if (!dueDate) {
+      return res.status(400).send("Missing required field: dueDate");
+    }
+    if (!course_no) {
+      return res.status(400).send("Missing required field: course_no");
+    }
+    const tableName = `assignment_${className}`; // table for assignments
+    const marksTableName = `assignment_marks_${className}`; // table for assignment marks
+    console.log("table name:", tableName);
+    const staff_no = req.user.staff_no;
+    try {
+      // Insert the assignment and return the assignment number
+      const insertAssignmentQuery = `
       INSERT INTO ${tableName} (description, marks, due_date, staff_no, course_no)
       VALUES ($1, $2, $3, $4, $5)
       RETURNING assignment_no;
     `;
-    const assignmentResult = await db.query(insertAssignmentQuery, [
-      description,
-      marks,
-      dueDate,
-      staff_no,
-      course_no,
-    ]);
-    const assignment_no = assignmentResult.rows[0].assignment_no;
+      const assignmentResult = await db.query(insertAssignmentQuery, [
+        description,
+        marks,
+        dueDate,
+        staff_no,
+        course_no,
+      ]);
+      const assignment_no = assignmentResult.rows[0].assignment_no;
 
-    // Fetch all students in the class and set their marks to NULL
-    const fetchStudentsQuery = `
+      // Fetch all students in the class and set their marks to NULL
+      const fetchStudentsQuery = `
       SELECT register_no FROM student WHERE class = $1 ORDER BY name;
     `;
-    const studentsResult = await db.query(fetchStudentsQuery, [className]);
+      const studentsResult = await db.query(fetchStudentsQuery, [className]);
 
-    for (const student of studentsResult.rows) {
-      const insertMarksQuery = `
+      for (const student of studentsResult.rows) {
+        const insertMarksQuery = `
         INSERT INTO ${marksTableName} (register_no, assignment_no, total_marks, award_marks)
         VALUES ($1, $2, $3, $4);
       `;
-      await db.query(insertMarksQuery, [
-        student.register_no,
-        assignment_no,
-        marks,
-        null, // Use null instead of NULL for JavaScript
-      ]);
-    }
+        await db.query(insertMarksQuery, [
+          student.register_no,
+          assignment_no,
+          marks,
+          null, // Use null instead of NULL for JavaScript
+        ]);
+      }
 
-    res.status(200).send("Assignment added successfully");
-  } catch (err) {
-    console.error("Error adding assignment:", err);
-    res.status(500).send("Server error");
-  }
-});
+      res.status(200).send("Assignment added successfully");
+    } catch (err) {
+      console.error("Error adding assignment:", err);
+      res.status(500).send("Server error");
+    }
+  },
+);
 
 router.get("/getAssignmentByClass", authenticateToken, async (req, res) => {
   const { className } = req.body;
@@ -590,9 +595,19 @@ router.post("/updateAttendance", authenticateToken, async (req, res) => {
   }
 });
 
+router.get("/viewCourses", async (req, res, next) => {
+  try {
+    const result = await db.query("SELECT * FROM course");
+    res.status(200).json(result.rows);
+  } catch (err) {
+    next(err);
+  }
+});
+
 async function checkAttendanceAuthorization(req, res, next) {
-  const staffId = req.user.staff_no;
-  //const { classId, courseNo } = req.body;
+  const staff_no = 22;
+  const { classId, courseNo } = req.body;
+
   try {
     const query = `
       SELECT course_charges
@@ -600,25 +615,49 @@ async function checkAttendanceAuthorization(req, res, next) {
       WHERE staff_no = $1;
     `;
 
-    const { rows } = await pool.query(query, [staffId]);
+    const { rows } = await db.query(query, [staff_no]);
     if (rows.length === 0) {
       throw new Error("Staff member not found.");
     }
 
-    const { course_charges } = rows[0];
-    const courseCharges = JSON.parse(course_charges);
+    const course_charges = rows[0];
+    //const courseCharges = JSON.parse(course_charges)
 
     // Check if the specified class exists in courseCharges and contains the courseNo
-    const isAuthorized =
-      courseCharges[classId] && courseCharges[classId].includes(courseNo);
-
+    var isAuthorized = false;
+    // courseCharges[classId] && courseCharges[classId].includes(courseNo);
+    for (const coursekey in course_charges) {
+      if (
+        course_charges[coursekey].includes(classId) &&
+        coursekey === courseNo
+      ) {
+        isAuthorized = true;
+        break;
+      }
+    }
     return isAuthorized;
   } catch (error) {
     console.error("Error checking attendance authorization:", error);
-    next(err);
-    throw error;
+    next(error);
+    //throw error;
   }
 }
+router.get("selfDetails", authenticateToken, async (req, res) => {
+  const staff_no = req.user.staff_no;
+  try {
+    const result = await db.query("SELECT * FROM staff WHERE staff_no = $1", [
+      staff_no,
+    ]);
+    if (result.rows.length === 0) {
+      res.status(404).send("Staff member not found");
+    } else {
+      res.status(200).send(result.rows[0]);
+    }
+  } catch (err) {
+    console.error("Error fetching staff details:", err);
+    res.status(500).send("Server error");
+  }
+});
 
 async function checkAssignmentAuthorization(req, res, next) {
   const staffId = req.user.staff_no;
@@ -658,13 +697,18 @@ async function checkAssignmentAuthorization(req, res, next) {
     // Check if the specified class exists in courseCharges and contains the course_no
     var isAuthorized = false;
     for (const courseKey in course_charges) {
-      if (course_charges[courseKey].includes(className) && courseKey === course_no) {
+      if (
+        course_charges[courseKey].includes(className) &&
+        courseKey === course_no
+      ) {
         isAuthorized = true;
         break;
       }
     }
     if (!isAuthorized) {
-      return res.status(403).send("Not authorized to assign this course for the class");
+      return res
+        .status(403)
+        .send("Not authorized to assign this course for the class");
     }
 
     next();

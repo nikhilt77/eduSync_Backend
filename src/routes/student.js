@@ -65,6 +65,15 @@ router.post("/login", async (req, res) => {
     res.status(500).send("Server error");
   }
 });
+router.get("/viewStudentDetails", authenticateToken, async (req, res, next) => {
+  const register_no = req.user.register_no;
+  const result = await db.query(`SELECT * from student where register_no=$1`, [
+    register_no,
+  ]);
+  const student = result.rows[0];
+  res.status(200).json(student);
+});
+
 router.get(
   "/viewAttendance/:register_no",
   authenticateToken,
