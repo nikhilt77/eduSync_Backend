@@ -69,7 +69,7 @@ router.get("/getStudentByClass", authenticateToken, async (req, res, next) => {
   }
 });
 
-router.post("/getStudentById", authenticateToken, async (req, res, next) => {
+router.get("/getStudentById", authenticateToken, async (req, res, next) => {
   try {
     const { register_no } = req.body;
     if (!register_no) {
@@ -201,15 +201,6 @@ router.post("/addSchedule", authenticateToken, async (req, res) => {
   }
   const tableName = `schedule_${className}`;
   try {
-    // Create table if it doesn't exist
-    const createTableQuery = `
-      CREATE TABLE IF NOT EXISTS ${tableName} (
-        day VARCHAR(10) PRIMARY KEY,
-        hours VARCHAR(25)[]
-      );
-    `;
-    await db.query(createTableQuery);
-
     // Loop through the schedule object and insert/update each day's schedule
     for (const [day, hours] of Object.entries(schedule)) {
       const insertQuery = `
@@ -220,7 +211,6 @@ router.post("/addSchedule", authenticateToken, async (req, res) => {
       `;
       await db.query(insertQuery, [day, hours]);
     }
-
     res
       .status(200)
       .send(`Schedule for class ${className} updated successfully`);
@@ -295,7 +285,7 @@ router.delete("/deleteSchedule", authenticateToken, async (req, res) => {
 //     res.status(500).send('Server error');
 //   }
 // });
-router.get(
+router.post(
   "/checkAttendance",
   checkAttendanceAuthorization,
   checkSchedule,
@@ -306,12 +296,13 @@ router.get(
       return res.status(400).send("Missing required fields");
     }
     const tableName = `attendance_${className}`;
+    console.log(tableName)
+
     try {
       const result = await db.query(
         `SELECT * FROM ${tableName} WHERE date_of_att = $1 AND day = $2 AND hour = $3 AND course_no = $4`,
         [date_of_att, day, hour, course_no],
       );
-
       if (result.rows.length === 0) {
         res
           .status(404)
@@ -323,9 +314,10 @@ router.get(
 
         for (const row of result.rows) {
           const result2 = await db.query(
-            `INSERT INTO ${tableName} (date_of_att, day, register_no, course_no, hour, att) VALUES ($1, $2, $3, $4, $5, $6)`,
+            `INSERT INTO ${tableName} (date_of_att, day, register_no, course_no, hour, att) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
             [date_of_att, day, row.register_no, course_no, hour, true],
           );
+
           console.log(result2.rows);
         }
       }
@@ -357,66 +349,59 @@ router.get("/getAttendance", authenticateToken, async (req, res) => {
   }
 });
 
-router.post("/giveAssignment", authenticateToken, async (req, res) => {
-  const { className, description, marks, dueDate, staff_no, course_no } =
-    req.body;
-  if (
-    !className ||
-    !description ||
-    !marks ||
-    !dueDate ||
-    !staff_no ||
-    !course_no
-  ) {
-    return res.status(400).send("Missing required fields");
+router.post("/giveAssignment", authenticateToken, checkAssignmentAuthorization, async (req, res) => {
+  const { className, description, marks, dueDate, course_no } = req.body;
+  if (!className) {
+    return res.status(400).send("Missing required field: className");
   }
-  const tableName = `assignment_${className}`; //table for assignmemts
-  const markstableName = `assignment_marks_${className}`; //table for assignment marks
+  if (!description) {
+    return res.status(400).send("Missing required field: description");
+  }
+  if (!marks) {
+    return res.status(400).send("Missing required field: marks");
+  }
+  if (!dueDate) {
+    return res.status(400).send("Missing required field: dueDate");
+  }
+  if (!course_no) {
+    return res.status(400).send("Missing required field: course_no");
+  }
+  const tableName = `assignment_${className}`; // table for assignments
+  const marksTableName = `assignment_marks_${className}`; // table for assignment marks
+  console.log("table name:", tableName);
+  const staff_no = req.user.staff_no;
   try {
-    // Create table if it doesn't exist
-    const createTableQuery = `
-      CREATE TABLE IF NOT EXISTS ${tableName} (
-      assignment_no SERIAL PRIMARY KEY,
-      description VARCHAR(1000),
-      marks INTEGER,
-      due_date DATE,
-      staff_no INTEGER,
-      course_no VARCHAR(25)
-      );
-    `;
-    await db.query(createTableQuery);
-
-    // Insert the assignment
-    const insertQuery = `
+    // Insert the assignment and return the assignment number
+    const insertAssignmentQuery = `
       INSERT INTO ${tableName} (description, marks, due_date, staff_no, course_no)
-      VALUES ($1, $2, $3, $4, $5);
+      VALUES ($1, $2, $3, $4, $5)
+      RETURNING assignment_no;
     `;
-    await db.query(insertQuery, [
+    const assignmentResult = await db.query(insertAssignmentQuery, [
       description,
       marks,
       dueDate,
       staff_no,
       course_no,
     ]);
+    const assignment_no = assignmentResult.rows[0].assignment_no;
 
     // Fetch all students in the class and set their marks to NULL
     const fetchStudentsQuery = `
-      SELECT register_no FROM student WHERE class = $1 order by name;
+      SELECT register_no FROM student WHERE class = $1 ORDER BY name;
     `;
     const studentsResult = await db.query(fetchStudentsQuery, [className]);
 
     for (const student of studentsResult.rows) {
       const insertMarksQuery = `
-      INSERT INTO ${markstableName} (assignment_no, register_no, total_marks, award_marks)
-      VALUES ($1, $2, $3, $4)
-      ON CONFLICT (assignment_no, register_no)
-      DO UPDATE SET total_marks = EXCLUDED.total_marks, award_marks = EXCLUDED.award_marks;
+        INSERT INTO ${marksTableName} (register_no, assignment_no, total_marks, award_marks)
+        VALUES ($1, $2, $3, $4);
       `;
       await db.query(insertMarksQuery, [
-        assignment_no,
         student.register_no,
+        assignment_no,
         marks,
-        NULL,
+        null, // Use null instead of NULL for JavaScript
       ]);
     }
 
@@ -442,7 +427,7 @@ router.get("/getAssignmentByClass", authenticateToken, async (req, res) => {
     }
   } catch (err) {
     console.error("Error fetching assignments:", err);
-    res.status(500).send("Server error");
+    res.status(500).send("No such class found in assignments");
   }
 });
 
@@ -453,6 +438,12 @@ router.delete("/deleteAssignment", authenticateToken, async (req, res) => {
   }
   const tableName = `assignment_${className}`;
   try {
+    const classCheckQuery = `SELECT 1 FROM information_schema.tables WHERE table_name = $1`;
+    const classCheckResult = await db.query(classCheckQuery, [tableName]);
+    if (classCheckResult.rowCount === 0) {
+      return res.status(404).send("No such class found");
+    }
+
     const deleteQuery = `
       DELETE FROM ${tableName}
       WHERE assignment_no = $1;
@@ -503,7 +494,7 @@ router.get("/getMarks", authenticateToken, async (req, res) => {
   const tableName = `assignment_marks_${className}`;
   try {
     const result = await db.query(
-      `SELECT * FROM ${tableName} WHERE assignment_no = $1`,
+      `SELECT * FROM ${tableName} WHERE assignment_no = $1 order by register_no`,
       [assignment_no],
     );
     if (result.rows.length === 0) {
@@ -518,7 +509,7 @@ router.get("/getMarks", authenticateToken, async (req, res) => {
 });
 
 router.get("/showClasses", authenticateToken, async (req, res) => {
-  const result = await db.query("SELECT * FROM class");
+  const result = await db.query("SELECT * FROM classes");
   if (result.rows.length === 0) {
     res.status(404).send("No classes found");
   } else {
@@ -527,14 +518,14 @@ router.get("/showClasses", authenticateToken, async (req, res) => {
 });
 
 router.put("/changePassword", authenticateToken, async (req, res) => {
-  const staff_id = req.user.staff_id;
+  const staff_id = req.user.staff_no;
   const newPassword = req.body.newPassword;
   if (!newPassword) {
     return res.status(400).send("Missing required fields");
   }
   try {
     const result = await db.query(
-      "UPDATE staff SET password=$1 WHERE staff_id=$2",
+      "UPDATE staff SET password=$1 WHERE staff_no=$2",
       [newPassword, staff_id],
     );
     res.status(200).send("Password changed successfully");
@@ -584,13 +575,13 @@ router.post("/updateAttendance", authenticateToken, async (req, res) => {
 });
 
 async function checkAttendanceAuthorization(req, res, next) {
-  const staffId = req.user.id;
+  const staffId = req.user.staff_no;
   //const { classId, courseNo } = req.body;
   try {
     const query = `
       SELECT course_charges
       FROM staff
-      WHERE id = $1;
+      WHERE staff_no = $1;
     `;
 
     const { rows } = await pool.query(query, [staffId]);
@@ -612,6 +603,61 @@ async function checkAttendanceAuthorization(req, res, next) {
     throw error;
   }
 }
+
+async function checkAssignmentAuthorization(req, res, next) {
+  const staffId = req.user.staff_no;
+  const { className, course_no } = req.body;
+
+  if (!className) {
+    return res.status(400).send("Missing required field: className");
+  }
+  if (!course_no) {
+    return res.status(400).send("Missing required field: course_no");
+  }
+
+  try {
+    const query = `
+      SELECT course_charges
+      FROM staff
+      WHERE staff_no = $1;
+    `;
+
+    const { rows } = await db.query(query, [staffId]);
+    if (rows.length === 0) {
+      return res.status(404).send("Staff member not found");
+    }
+
+    let { course_charges } = rows[0];
+
+    // If course_charges is a string, parse it; otherwise, assume it’s an object
+    if (typeof course_charges === "string") {
+      try {
+        course_charges = JSON.parse(course_charges);
+      } catch (parseError) {
+        console.error("Failed to parse course_charges:", parseError);
+        return res.status(500).send("Invalid data format for course charges");
+      }
+    }
+
+    // Check if the specified class exists in courseCharges and contains the course_no
+    var isAuthorized = false;
+    for (const courseKey in course_charges) {
+      if (course_charges[courseKey].includes(className) && courseKey === course_no) {
+        isAuthorized = true;
+        break;
+      }
+    }
+    if (!isAuthorized) {
+      return res.status(403).send("Not authorized to assign this course for the class");
+    }
+
+    next();
+  } catch (error) {
+    console.error("Error checking assignment authorization:", error.message);
+    res.status(500).send("Server error: " + error.message);
+  }
+}
+
 async function checkSchedule(req, res, next) {
   //const { className, course_no, hour ,day} = req.body;
   const day = req.body.day;
