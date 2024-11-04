@@ -112,16 +112,13 @@ router.post(
               "Staff member already exists with the same name and in-charge-of department",
             );
         }
-        const query =
-          "INSERT INTO staff(name,in_charge_of,course_charges,password) VALUES($1,$2,$3,$4) RETURNING *";
-        const values = [name, in_charge_of, course_charges, password];
-        const result = await db.query(query, values);
-        res.status(200).send(result.rows[0]);
+
         const query2 = "SELECT * FROM classes where class = $1";
         const values2 = [in_charge_of];
         const result2 = await db.query(query2, values2);
         if (result2.rows.length === 0) {
-          const insertClassQuery = "INSERT INTO classes(class) VALUES ($1)";
+          const insertClassQuery =
+            "INSERT INTO classes(class) VALUES (UPPER($1))";
           await db.query(insertClassQuery, [in_charge_of]);
           const query3 = `CREATE TABLE IF NOT EXISTS public.schedule_${in_charge_of}
         (
@@ -132,7 +129,7 @@ router.post(
             TABLESPACE pg_default;
 
             ALTER TABLE IF EXISTS public.schedule_${in_charge_of}
-                OWNER to ${process.env.username};`;
+                OWNER to ${process.env.postgresusername};`;
           const result3 = await db.query(query3);
           const query4 = `CREATE TABLE IF NOT EXISTS public.attendence_${in_charge_of}
         (
@@ -152,7 +149,7 @@ router.post(
         TABLESPACE pg_default;
 
         ALTER TABLE IF EXISTS public.attendence_${in_charge_of}
-            OWNER to ${process.env.username};`;
+            OWNER to ${process.env.postgresusername};`;
           const result4 = await db.query(query4);
           const query5 = `CREATE TABLE IF NOT EXISTS public.assignment_${in_charge_of}
         (
@@ -178,7 +175,7 @@ router.post(
         TABLESPACE pg_default;
 
         ALTER TABLE IF EXISTS public.assignment_${in_charge_of}
-            OWNER to ${process.env.username};`;
+            OWNER to ${process.env.postgresusername};`;
           const result5 = await db.query(query5);
           const query6 = `CREATE TABLE IF NOT EXISTS public.assignment_marks_${in_charge_of}
         (
@@ -203,13 +200,19 @@ router.post(
         TABLESPACE pg_default;
 
         ALTER TABLE IF EXISTS public.assignment_marks_${in_charge_of}
-            OWNER to ${process.env.username};`;
+            OWNER to ${process.env.postgresusername};`;
           try {
             const result6 = await db.query(query6);
           } catch (err) {
             console.error("Error creating assignment_marks table:", err);
           }
         }
+        console.log("Table created successfully");
+        const query =
+          "INSERT INTO staff(name,in_charge_of,course_charges,password) VALUES($1,$2,$3,$4) RETURNING *";
+        const values = [name, in_charge_of, course_charges, password];
+        const result = await db.query(query, values);
+        res.status(200).send(result.rows[0]);
       }
     } catch (err) {
       next(err);
@@ -220,10 +223,11 @@ router.post(
 router.get(
   "/viewStaff",
   authenticateToken,
-  checkAdmin,
+  /*checkAdmin,*/
   async (req, res, next) => {
     try {
-      const query = "SELECT * FROM staff";
+      const query =
+        "SELECT staff_no,name,in_charge_of,course_charges FROM staff";
       const result = await db.query(query);
       res.status(200).send(result.rows);
     } catch (err) {
@@ -231,37 +235,164 @@ router.get(
     }
   },
 );
-router.put(
-  "/editStaff",
-  authenticateToken,
-  checkAdmin,
-  async (req, res, next) => {
-    const { staff_no, name, in_charge_of, course_charges, password } = req.body;
+router.put("/editStaff", authenticateToken, async (req, res, next) => {
+  const { staff_no, name, in_charge_of, course_charges, password } = req.body;
+
+  try {
     const query = "SELECT * FROM staff WHERE staff_no=$1";
     const values = [staff_no];
     const result = await db.query(query, values);
-    res.send(result.rows[0]);
+
     if (result.rows.length === 0) {
-      return res.status(400).send("Staff no does not exist");
-    } else {
-      try {
-        const query =
-          "UPDATE staff SET name=$1,in_charge_of=$2,course_charges=$3,password=$4 WHERE staff_no=$5 RETURNING *";
-        const values = [name, in_charge_of, course_charges, password, staff_no];
-        const result = await db.query(query, values);
-        res.status(200).send(result.rows[0]);
-      } catch (err) {
-        next(err);
-        res.redirect("/editStaff");
+      return res.status(400).send("Staff number does not exist");
+    }
+
+    const currentDetails = result.rows[0];
+    if (!name && !in_charge_of && !course_charges && !password) {
+      return res.status(200).send({
+        message: "Current staff details",
+        staffDetails: currentDetails,
+      });
+    }
+
+    const updatedName = name || currentDetails.name;
+    const updatedInChargeOf = in_charge_of || currentDetails.in_charge_of;
+    const updatedCourseCharges =
+      course_charges || currentDetails.course_charges;
+    const updatedPassword = password || currentDetails.password;
+
+    if (updatedInChargeOf !== currentDetails.in_charge_of) {
+      const checkClassQuery = `
+              SELECT * FROM staff WHERE in_charge_of = $1 AND staff_no != $2
+            `;
+      const checkClassResult = await db.query(checkClassQuery, [
+        updatedInChargeOf,
+        staff_no,
+      ]);
+
+      if (checkClassResult.rows.length > 0) {
+        return res
+          .status(400)
+          .send("This class is already assigned to another staff member.");
+      }
+      const classCheckQuery = "SELECT * FROM classes WHERE class = $1";
+      const classCheckResult = await db.query(classCheckQuery, [
+        updatedInChargeOf,
+      ]);
+
+      if (classCheckResult.rows.length === 0) {
+        const insertClassQuery =
+          "INSERT INTO classes(class) VALUES (UPPER($1))";
+        await db.query(insertClassQuery, [updatedInChargeOf]);
       }
     }
-  },
-);
+
+    const updateQuery = `
+        UPDATE staff
+        SET name=$1, in_charge_of=$2, course_charges=$3, password=$4
+        WHERE staff_no=$5 RETURNING *
+      `;
+    const updateValues = [
+      updatedName,
+      updatedInChargeOf,
+      updatedCourseCharges,
+      updatedPassword,
+      staff_no,
+    ];
+    const updateResult = await db.query(updateQuery, updateValues);
+
+    const scheduleQuery = `
+        CREATE TABLE IF NOT EXISTS public.schedule_${updatedInChargeOf} (
+            day character varying(10) NOT NULL,
+            hours character varying(25)[],
+            CONSTRAINT schedule_${updatedInChargeOf}_pkey PRIMARY KEY (day)
+        );
+        ALTER TABLE IF EXISTS public.schedule_${updatedInChargeOf}
+            OWNER to ${process.env.postgresusername};
+      `;
+    await db.query(scheduleQuery);
+
+    const attendanceQuery = `
+        CREATE TABLE IF NOT EXISTS public.attendence_${updatedInChargeOf} (
+            att_id integer NOT NULL GENERATED ALWAYS AS IDENTITY ( INCREMENT 1 START 1 MINVALUE 1 MAXVALUE 2147483647 CACHE 1 ),
+            date_of_att date,
+            hours json,
+            day character varying(25),
+            register_no character varying,
+            CONSTRAINT attendence_${updatedInChargeOf}_pkey PRIMARY KEY (att_id),
+            CONSTRAINT studentdetails FOREIGN KEY (register_no)
+                REFERENCES public.student (register_no) MATCH SIMPLE
+                ON UPDATE NO ACTION
+                ON DELETE CASCADE
+                NOT VALID
+        );
+        ALTER TABLE IF EXISTS public.attendence_${updatedInChargeOf}
+            OWNER to ${process.env.postgresusername};
+      `;
+    await db.query(attendanceQuery);
+
+    const assignmentQuery = `
+        CREATE TABLE IF NOT EXISTS public.assignment_${updatedInChargeOf} (
+            assignment_no integer NOT NULL GENERATED ALWAYS AS IDENTITY ( INCREMENT 1 START 1 MINVALUE 1 MAXVALUE 2147483647 CACHE 1 ),
+            description character varying(1000),
+            marks integer,
+            due_date date,
+            staff_no integer NOT NULL,
+            course_no character varying,
+            CONSTRAINT assignment_${updatedInChargeOf}_pkey PRIMARY KEY (assignment_no),
+            CONSTRAINT coursedetails FOREIGN KEY (course_no)
+                REFERENCES public.courses (course_no) MATCH SIMPLE
+                ON UPDATE NO ACTION
+                ON DELETE CASCADE
+                NOT VALID,
+            CONSTRAINT staffdetails FOREIGN KEY (staff_no)
+                REFERENCES public.staff (staff_no) MATCH SIMPLE
+                ON UPDATE NO ACTION
+                ON DELETE CASCADE
+                NOT VALID
+        );
+        ALTER TABLE IF EXISTS public.assignment_${updatedInChargeOf}
+            OWNER to ${process.env.postgresusername};
+      `;
+    await db.query(assignmentQuery);
+
+    const assignmentMarksQuery = `
+        CREATE TABLE IF NOT EXISTS public.assignment_marks_${updatedInChargeOf} (
+            assign_m_no integer NOT NULL GENERATED ALWAYS AS IDENTITY ( INCREMENT 1 START 1 MINVALUE 1 MAXVALUE 2147483647 CACHE 1 ),
+            total_marks integer,
+            award_marks integer,
+            assignment_no integer,
+            register_no character varying,
+            CONSTRAINT assignment_marks_${updatedInChargeOf}_pkey PRIMARY KEY (assign_m_no),
+            CONSTRAINT assignmentdetails FOREIGN KEY (assignment_no)
+                REFERENCES public.assignment_${updatedInChargeOf} (assignment_no) MATCH SIMPLE
+                ON UPDATE NO ACTION
+                ON DELETE CASCADE
+                NOT VALID,
+            CONSTRAINT studentdetails FOREIGN KEY (register_no)
+                REFERENCES public.student (register_no) MATCH SIMPLE
+                ON UPDATE NO ACTION
+                ON DELETE CASCADE
+                NOT VALID
+        );
+        ALTER TABLE IF EXISTS public.assignment_marks_${updatedInChargeOf}
+            OWNER to ${process.env.postgresusername};
+      `;
+    await db.query(assignmentMarksQuery);
+
+    res.status(200).send({
+      message: "Staff details updated successfully",
+      updatedDetails: updateResult.rows[0],
+    });
+  } catch (err) {
+    next(err);
+  }
+});
 
 router.get(
   "/viewStaffAdvisor",
   authenticateToken,
-  checkAdmin,
+  /*checkAdmin,*/
   async (req, res, next) => {
     try {
       const result = await db.query(
@@ -276,7 +407,7 @@ router.get(
 router.delete("/deleteClass", async (req, res, next) => {
   const className = req.body.class;
   try {
-    const query = "DELETE FROM classes WHERE class=$1";
+    const query = "DELETE FROM classes WHERE class=UPPER($1)";
     const values = [className];
     const result = await db.query(query, values);
     res.status(200).send("Class deleted");
@@ -288,6 +419,15 @@ router.delete("/deleteClass", async (req, res, next) => {
   } catch (err) {
     next(err);
     res.redirect("/deleteClass");
+  }
+});
+router.get("/showClasses", async (req, res, next) => {
+  try {
+    const result = await db.query(`SELECT * FROM classes`);
+    res.status(200).send(result.rows);
+  } catch (err) {
+    console.log("Classes not fetched");
+    next(err);
   }
 });
 function checkAdmin(req, res, next) {
