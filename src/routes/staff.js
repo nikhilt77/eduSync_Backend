@@ -24,8 +24,7 @@ function authenticateToken(req, res, next) {
   if (!token) {
     return res.status(401).send("Token required");
   }
-  console.log("Token received:", token);
-  console.log("JWT_SECRET during verification:", process.env.JWT_SECRET);
+
   jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
     if (err) return res.status(403).send("Invalid token");
     req.user = user;
@@ -75,7 +74,8 @@ router.post("/getStudentById", authenticateToken, async (req, res, next) => {
     if (!register_no) {
       return res.status(400).send("Register number is required");
     }
-    const query = "SELECT name, class, date_of_birth, phone_number, register_no FROM student WHERE register_no=$1";
+    const query =
+      "SELECT name, class, date_of_birth, phone_number, register_no FROM student WHERE register_no=$1";
     const values = [register_no];
     const result = await db.query(query, values);
 
@@ -100,9 +100,16 @@ router.post("/addStudents", authenticateToken, async (req, res, next) => {
     }
 
     for (const student of students) {
-      const { name, date_of_birth, phone_number, register_no, password } = student;
+      const { name, date_of_birth, phone_number, register_no, password } =
+        student;
 
-      if (!name || !date_of_birth || !phone_number || !register_no || !password) {
+      if (
+        !name ||
+        !date_of_birth ||
+        !phone_number ||
+        !register_no ||
+        !password
+      ) {
         return res.status(400).send("All student fields are required");
       }
 
@@ -110,7 +117,14 @@ router.post("/addStudents", authenticateToken, async (req, res, next) => {
         INSERT INTO student(name, class, date_of_birth, phone_number, register_no, password)
         VALUES($1, $2, $3, $4, $5, $6)
         RETURNING *`;
-      const values = [name, studentClass, date_of_birth, phone_number, register_no, password];
+      const values = [
+        name,
+        studentClass,
+        date_of_birth,
+        phone_number,
+        register_no,
+        password,
+      ];
       await db.query(query, values);
     }
 
@@ -239,7 +253,9 @@ router.delete("/deleteSchedule", authenticateToken, async (req, res) => {
   try {
     const deleteQuery = `DELETE FROM ${tableName}`;
     await db.query(deleteQuery);
-    res.status(200).send(`Schedule for class ${className} deleted successfully`);
+    res
+      .status(200)
+      .send(`Schedule for class ${className} deleted successfully`);
   } catch (err) {
     console.error("Error deleting schedule:", err);
     res.status(500).send("Server error");

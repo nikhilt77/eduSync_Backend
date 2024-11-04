@@ -23,8 +23,7 @@ function authenticateToken(req, res, next) {
   if (!token) {
     return res.status(401).send("Token required");
   }
-  console.log("Token received:", token);
-
+  console.log("Token:", token);
   jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
     if (err) return res.status(403).send("Invalid token");
     req.user = user;
