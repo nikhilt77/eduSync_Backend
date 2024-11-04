@@ -6,7 +6,7 @@ const jwt = require("jsonwebtoken");
 require("dotenv").config();
 
 const db = new pg.Client({
-  user: process.env.username,
+  user: process.env.postgresusername,
   password: process.env.password,
   host: process.env.host,
   port: 5432,

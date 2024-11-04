@@ -5,7 +5,7 @@ const jwt = require("jsonwebtoken");
 require("dotenv").config();
 
 const db = new pg.Client({
-  user: process.env.username,
+  user: process.env.postgresusername,
   password: process.env.password,
   host: process.env.host,
   port: 5432,
@@ -72,7 +72,7 @@ router.post("/signup", async (req, res, next) => {
 
     const token = jwt.sign({ username, role }, process.env.JWT_SECRET, {
       expiresIn: "100y",
-    }); // Token will expire in 100 years
+    });
 
     res.status(200).json({
       message: "User created successfully",
@@ -117,11 +117,11 @@ router.post(
         const values = [name, in_charge_of, course_charges, password];
         const result = await db.query(query, values);
         res.status(200).send(result.rows[0]);
-        const query2 = "SELECT * FROM cls where class_name = $1";
+        const query2 = "SELECT * FROM classes where class = $1";
         const values2 = [in_charge_of];
         const result2 = await db.query(query2, values2);
         if (result2.rows.length === 0) {
-          const insertClassQuery = "INSERT INTO cls (class_name) VALUES ($1)";
+          const insertClassQuery = "INSERT INTO classes(class) VALUES ($1)";
           await db.query(insertClassQuery, [in_charge_of]);
           const query3 = `CREATE TABLE IF NOT EXISTS public.schedule_${in_charge_of}
         (
