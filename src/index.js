@@ -31,7 +31,7 @@ const jwtSecret = process.env.JWT_SECRET;
 
 app.get("/", (req, res) => {
   const token = jwt.sign({ data: "test" }, jwtSecret, { expiresIn: "10y" });
-  res.send(`Hello World! Your token: ${token}`);
+  res.send(`Hello Welcome??`);
 });
 app.use("/student", studentRoutes);
 app.use("/staff", staffRoutes);
