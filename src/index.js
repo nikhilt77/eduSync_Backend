@@ -10,7 +10,7 @@ const staffRoutes = require("./routes/staff");
 const port = process.env.port || 3600;
 const pg = require("pg");
 const db = new pg.Client({
-  user: process.env.username,
+  user: process.env.postgresusername,
   password: process.env.password,
   host: process.env.host,
   port: 5432,
