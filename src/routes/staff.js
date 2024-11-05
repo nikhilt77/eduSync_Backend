@@ -338,26 +338,26 @@ router.post(
       // If attendance already exists
       if (result.rows.length > 0) {
         res.send(result.rows[0]);
-        return res
+        /*return res
           .status(409)
-          .send("Attendance already exists for the specified parameters.");
-      }
-
-      // Fetch all students in the class
-      const studentsResult = await db.query(
-        `SELECT register_no FROM student WHERE class = $1`,
-        [className],
-      );
-
-      // Insert attendance entries for each student
-      for (const student of studentsResult.rows) {
-        await db.query(
-          `INSERT INTO ${tableName} (date_of_att, day, register_no, course_no, hour, att) VALUES ($1, $2, $3, $4, $5, $6)`,
-          [date_of_att, day, student.register_no, course_no, hour, true],
+          .send("Attendance already exists for the specified parameters.");*/
+      } else {
+        // Fetch all students in the class
+        const studentsResult = await db.query(
+          `SELECT register_no FROM student WHERE class = $1`,
+          [className],
         );
-      }
 
-      res.status(200).send("Attendance recorded successfully.");
+        // Insert attendance entries for each student
+        for (const student of studentsResult.rows) {
+          await db.query(
+            `INSERT INTO ${tableName} (date_of_att, day, register_no, course_no, hour, att) VALUES ($1, $2, $3, $4, $5, $6)`,
+            [date_of_att, day, student.register_no, course_no, hour, true],
+          );
+        }
+
+        res.status(200).send("Attendance recorded successfully.");
+      }
     } catch (err) {
       console.error("Error recording attendance:", err);
       res.status(500).send("Server error");
