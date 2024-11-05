@@ -480,12 +480,54 @@ router.get(
     }
   },
 );
-// router.get("/getAssignmentByStaff", authenticateToken, async (req, res) => {
-//   const staff_no = req.user.staff_no;
-//   const classesQuery = `SELECT class FROM staff WHERE staff_no = $1`;
-//   try {
+router.get("/getAssignmentsByStaff", authenticateToken, async (req, res) => {
+  const staff_no = req.user.staff_no;
 
-//   })
+  try {
+    const staffResult = await db.query(
+      "SELECT course_charges FROM staff WHERE staff_no = $1",
+      [staff_no],
+    );
+    if (staffResult.rows.length === 0) {
+      return res.status(404).send("Staff member not found");
+    }
+
+    const courseCharges = staffResult.rows[0].course_charges;
+    const assignments = [];
+
+    for (const courseNo in courseCharges) {
+      const classes = courseCharges[courseNo];
+      for (const className of classes) {
+        const tableName = `assignment_${className.toLowerCase()}`;
+
+        try {
+          const result = await db.query(
+            `SELECT * FROM ${tableName} WHERE staff_no = $1 AND course_no = $2`,
+            [staff_no, courseNo],
+          );
+          if (result.rows.length > 0) {
+            assignments.push(...result.rows);
+          }
+        } catch (err) {
+          console.error(
+            `Error fetching assignments for class ${className.toLowerCase()} in course ${courseNo}:`,
+            err,
+          );
+        }
+      }
+    }
+
+    if (assignments.length === 0) {
+      res.status(404).send("No assignments found for the given staff");
+    } else {
+      res.status(200).send(assignments);
+    }
+  } catch (err) {
+    console.error("Error fetching assignments:", err);
+    res.status(500).send("Server error");
+  }
+});
+
 router.delete("/deleteAssignment", authenticateToken, async (req, res) => {
   let { className, assignment_no } = req.body;
   if (!className || !assignment_no) {
@@ -746,4 +788,4 @@ async function checkSchedule(req, res, next) {
 
 module.exports = router;
 
-//I hope this shit works pt.😭4
+//I hope this shit works pt.😭5
