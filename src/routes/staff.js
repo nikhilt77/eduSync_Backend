@@ -365,27 +365,27 @@ router.post(
   },
 );
 
-router.get("/getAttendance", authenticateToken, async (req, res) => {
-  const { className, date_of_att } = req.body;
-  if (!className || !date_of_att) {
-    return res.status(400).send("Missing required fields");
-  }
-  const tableName = `attendance_${className}`;
-  try {
-    const result = await db.query(
-      `SELECT * FROM ${tableName} WHERE date_of_att = $1`,
-      [date_of_att],
-    );
-    if (result.rows.length === 0) {
-      res.status(404).send("No attendance found for the given class and date");
-    } else {
-      res.status(200).send(result.rows);
-    }
-  } catch (err) {
-    console.error("Error fetching attendance:", err);
-    res.status(500).send("Server error");
-  }
-});
+// router.get("/getAttendance", authenticateToken, async (req, res) => {
+//   const { className, date_of_att } = req.body;
+//   if (!className || !date_of_att) {
+//     return res.status(400).send("Missing required fields");
+//   }
+//   const tableName = `attendance_${className}`;
+//   try {
+//     const result = await db.query(
+//       `SELECT * FROM ${tableName} WHERE date_of_att = $1`,
+//       [date_of_att],
+//     );
+//     if (result.rows.length === 0) {
+//       res.status(404).send("No attendance found for the given class and date");
+//     } else {
+//       res.status(200).send(result.rows);
+//     }
+//   } catch (err) {
+//     console.error("Error fetching attendance:", err);
+//     res.status(500).send("Server error");
+//   }
+// });
 
 router.post(
   "/giveAssignment",
@@ -455,24 +455,28 @@ router.post(
   },
 );
 
-router.get("/getAssignmentByClass", authenticateToken, async (req, res) => {
-  const { className } = req.body;
-  if (!className) {
-    return res.status(400).send("Missing required fields");
-  }
-  const tableName = `assignment_${className}`;
-  try {
-    const result = await db.query(`SELECT * FROM ${tableName}`);
-    if (result.rows.length === 0) {
-      res.status(404).send("No assignments found for the given class");
-    } else {
-      res.status(200).send(result.rows);
+router.get(
+  "/getAssignmentByClass/:className",
+  authenticateToken,
+  async (req, res) => {
+    const className = req.params.className;
+    if (!className) {
+      return res.status(400).send("Missing required fields");
     }
-  } catch (err) {
-    console.error("Error fetching assignments:", err);
-    res.status(500).send("No such class found in assignments");
-  }
-});
+    const tableName = `assignment_${className}`;
+    try {
+      const result = await db.query(`SELECT * FROM ${tableName}`);
+      if (result.rows.length === 0) {
+        res.status(404).send("No assignments found for the given class");
+      } else {
+        res.status(200).send(result.rows);
+      }
+    } catch (err) {
+      console.error("Error fetching assignments:", err);
+      res.status(500).send("No such class found in assignments");
+    }
+  },
+);
 
 router.delete("/deleteAssignment", authenticateToken, async (req, res) => {
   const { className, assignment_no } = req.body;
@@ -529,7 +533,7 @@ router.post("/markAssignment", authenticateToken, async (req, res) => {
   }
 });
 
-router.get("/getMarks", authenticateToken, async (req, res) => {
+router.post("/getMarks", authenticateToken, async (req, res) => {
   const { className, assignment_no } = req.body;
   if (!className || !assignment_no) {
     return res.status(400).send("Missing required fields");
