@@ -132,24 +132,31 @@ router.post(
                 OWNER to ${process.env.postgresusername};`;
           const result3 = await db.query(query3);
           const query4 = `CREATE TABLE IF NOT EXISTS public.attendence_${in_charge_of}
-        (
-            att_id integer NOT NULL GENERATED ALWAYS AS IDENTITY ( INCREMENT 1 START 1 MINVALUE 1 MAXVALUE 2147483647 CACHE 1 ),
-            date_of_att date,
-            hours json,
-            day character varying(25) COLLATE pg_catalog."default",
-            register_no character varying COLLATE pg_catalog."default",
-            CONSTRAINT attendence_${in_charge_of}_pkey PRIMARY KEY (att_id),
-            CONSTRAINT studentdetails FOREIGN KEY (register_no)
-                REFERENCES public.student (register_no) MATCH SIMPLE
-                ON UPDATE NO ACTION
-                ON DELETE CASCADE
-                NOT VALID
-        )
+          (
+              att_id integer NOT NULL GENERATED ALWAYS AS IDENTITY (INCREMENT 1 START 1 MINVALUE 1 MAXVALUE 2147483647 CACHE 1),
+              date_of_att date,
+              day character varying(25) COLLATE pg_catalog."default",
+              register_no character varying(25) COLLATE pg_catalog."default",
+              course_no character varying(25) COLLATE pg_catalog."default",
+              hour integer,
+              att boolean,
+              CONSTRAINT attendence_${in_charge_of}_pkey PRIMARY KEY (att_id),
+              CONSTRAINT course_details FOREIGN KEY (course_no)
+                  REFERENCES public.courses (course_no) MATCH SIMPLE
+                  ON UPDATE NO ACTION
+                  ON DELETE CASCADE
+                  NOT VALID,
+              CONSTRAINT studentdetails FOREIGN KEY (register_no)
+                  REFERENCES public.student (register_no) MATCH SIMPLE
+                  ON UPDATE NO ACTION
+                  ON DELETE CASCADE
+          )
 
-        TABLESPACE pg_default;
+          TABLESPACE pg_default;
 
-        ALTER TABLE IF EXISTS public.attendence_${in_charge_of}
-            OWNER to ${process.env.postgresusername};`;
+          ALTER TABLE IF EXISTS public.attendence_${in_charge_of}
+              OWNER to ${process.env.postgresusername};
+`;
           const result4 = await db.query(query4);
           const query5 = `CREATE TABLE IF NOT EXISTS public.assignment_${in_charge_of}
         (
@@ -313,21 +320,28 @@ router.put("/editStaff", authenticateToken, async (req, res, next) => {
     await db.query(scheduleQuery);
 
     const attendanceQuery = `
-        CREATE TABLE IF NOT EXISTS public.attendence_${updatedInChargeOf} (
-            att_id integer NOT NULL GENERATED ALWAYS AS IDENTITY ( INCREMENT 1 START 1 MINVALUE 1 MAXVALUE 2147483647 CACHE 1 ),
-            date_of_att date,
-            hours json,
-            day character varying(25),
-            register_no character varying,
-            CONSTRAINT attendence_${updatedInChargeOf}_pkey PRIMARY KEY (att_id),
-            CONSTRAINT studentdetails FOREIGN KEY (register_no)
-                REFERENCES public.student (register_no) MATCH SIMPLE
-                ON UPDATE NO ACTION
-                ON DELETE CASCADE
-                NOT VALID
-        );
-        ALTER TABLE IF EXISTS public.attendence_${updatedInChargeOf}
-            OWNER to ${process.env.postgresusername};
+      CREATE TABLE IF NOT EXISTS public.attendence_${updatedInChargeOf} (
+          att_id integer NOT NULL GENERATED ALWAYS AS IDENTITY (INCREMENT 1 START 1 MINVALUE 1 MAXVALUE 2147483647 CACHE 1),
+          date_of_att date,
+          day character varying(25) COLLATE pg_catalog."default",
+          register_no character varying(25) COLLATE pg_catalog."default",
+          course_no character varying(25) COLLATE pg_catalog."default",
+          hour integer,
+          att boolean,
+          CONSTRAINT attendence_${updatedInChargeOf}_pkey PRIMARY KEY (att_id),
+          CONSTRAINT course_details FOREIGN KEY (course_no)
+              REFERENCES public.courses (course_no) MATCH SIMPLE
+              ON UPDATE NO ACTION
+              ON DELETE CASCADE
+              NOT VALID,
+          CONSTRAINT studentdetails FOREIGN KEY (register_no)
+              REFERENCES public.student (register_no) MATCH SIMPLE
+              ON UPDATE NO ACTION
+              ON DELETE CASCADE
+      );
+
+      ALTER TABLE IF EXISTS public.attendence_${updatedInChargeOf}
+          OWNER to ${process.env.postgresusername};
       `;
     await db.query(attendanceQuery);
 

@@ -124,7 +124,8 @@ router.get(
         a.description,
         a.due_date,
         am.award_marks,
-        a.marks
+        a.marks,
+        a.course_no
       FROM
         assignment_${className} a
       LEFT JOIN
@@ -157,6 +158,7 @@ router.get(
                 a.assignment_no,
                 a.description,
                 a.due_date,
+                a.course_no,
                 a.marks AS total_marks
               FROM
                 assignment_${className} a
@@ -258,6 +260,40 @@ router.get("/viewSchedule", authenticateToken, async (req, res, next) => {
     next(err);
   }
 });
+router.get(
+  "/viewAttendancePercentage",
+  authenticateToken,
+  async (req, res, next) => {
+    const register_no = req.user.register_no;
+    const className = await db.query(
+      `SELECT class FROM student WHERE register_no=$1`,
+      [register_no],
+    );
+    if (!className) {
+      return res.status(400).json({ error: "Class name is required" });
+    }
+    try {
+      const result = await db.query(
+        `
+      SELECT
+        course_no,
+        COUNT(*) AS total,
+        COUNT(*) FILTER (WHERE att) AS present,
+        (COUNT(*) FILTER (WHERE att)::float / COUNT(*) * 100) AS attendance_percentage
+      FROM attendence_${className}
+      WHERE register_no = $1
+      GROUP BY course_no
+    `,
+        [register_no],
+      );
+
+      res.json(result.rows);
+    } catch (error) {
+      console.error("Error fetching attendance percentage:", error);
+      next(error);
+    }
+  },
+);
 
 async function validateStudent(req, res, next) {
   const regi_no = req.body.register_no;

@@ -75,7 +75,8 @@ router.get("/getStudentById", authenticateToken, async (req, res, next) => {
     if (!register_no) {
       return res.status(400).send("Register number is required");
     }
-    const query = "SELECT name, class, date_of_birth, phone_number, register_no FROM student WHERE register_no=$1";
+    const query =
+      "SELECT name, class, date_of_birth, phone_number, register_no FROM student WHERE register_no=$1";
     const values = [register_no];
     const result = await db.query(query, values);
 
@@ -100,9 +101,16 @@ router.post("/addStudents", authenticateToken, async (req, res, next) => {
     }
 
     for (const student of students) {
-      const { name, date_of_birth, phone_number, register_no, password } = student;
+      const { name, date_of_birth, phone_number, register_no, password } =
+        student;
 
-      if (!name || !date_of_birth || !phone_number || !register_no || !password) {
+      if (
+        !name ||
+        !date_of_birth ||
+        !phone_number ||
+        !register_no ||
+        !password
+      ) {
         return res.status(400).send("All student fields are required");
       }
 
@@ -110,7 +118,14 @@ router.post("/addStudents", authenticateToken, async (req, res, next) => {
         INSERT INTO student(name, class, date_of_birth, phone_number, register_no, password)
         VALUES($1, $2, $3, $4, $5, $6)
         RETURNING *`;
-      const values = [name, studentClass, date_of_birth, phone_number, register_no, password];
+      const values = [
+        name,
+        studentClass,
+        date_of_birth,
+        phone_number,
+        register_no,
+        password,
+      ];
       await db.query(query, values);
     }
 
@@ -229,7 +244,9 @@ router.delete("/deleteSchedule", authenticateToken, async (req, res) => {
   try {
     const deleteQuery = `DELETE FROM ${tableName}`;
     await db.query(deleteQuery);
-    res.status(200).send(`Schedule for class ${className} deleted successfully`);
+    res
+      .status(200)
+      .send(`Schedule for class ${className} deleted successfully`);
   } catch (err) {
     console.error("Error deleting schedule:", err);
     res.status(500).send("Server error");
@@ -303,25 +320,27 @@ router.post(
       // Check if attendance already exists for the specified date, day, hour, and course_no
       const result = await db.query(
         `SELECT * FROM ${tableName} WHERE date_of_att = $1 AND day = $2 AND hour = $3 AND course_no = $4`,
-        [date_of_att, day, hour, course_no]
+        [date_of_att, day, hour, course_no],
       );
 
       // If attendance already exists
       if (result.rows.length > 0) {
-        return res.status(409).send("Attendance already exists for the specified parameters.");
+        return res
+          .status(409)
+          .send("Attendance already exists for the specified parameters.");
       }
 
       // Fetch all students in the class
       const studentsResult = await db.query(
         `SELECT register_no FROM student WHERE class = $1`,
-        [className]
+        [className],
       );
 
       // Insert attendance entries for each student
       for (const student of studentsResult.rows) {
         await db.query(
           `INSERT INTO ${tableName} (date_of_att, day, register_no, course_no, hour, att) VALUES ($1, $2, $3, $4, $5, $6)`,
-          [date_of_att, day, student.register_no, course_no, hour, true]
+          [date_of_att, day, student.register_no, course_no, hour, true],
         );
       }
 
@@ -330,7 +349,7 @@ router.post(
       console.error("Error recording attendance:", err);
       res.status(500).send("Server error");
     }
-  }
+  },
 );
 
 router.get("/getAttendance", authenticateToken, async (req, res) => {
@@ -355,68 +374,73 @@ router.get("/getAttendance", authenticateToken, async (req, res) => {
   }
 });
 
-router.post("/giveAssignment", authenticateToken, checkAssignmentAuthorization, async (req, res) => {
-  const { className, description, marks, dueDate, course_no } = req.body;
-  if (!className) {
-    return res.status(400).send("Missing required field: className");
-  }
-  if (!description) {
-    return res.status(400).send("Missing required field: description");
-  }
-  if (!marks) {
-    return res.status(400).send("Missing required field: marks");
-  }
-  if (!dueDate) {
-    return res.status(400).send("Missing required field: dueDate");
-  }
-  if (!course_no) {
-    return res.status(400).send("Missing required field: course_no");
-  }
-  const tableName = `assignment_${className}`; // table for assignments
-  const marksTableName = `assignment_marks_${className}`; // table for assignment marks
-  console.log("table name:", tableName);
-  const staff_no = req.user.staff_no;
-  try {
-    // Insert the assignment and return the assignment number
-    const insertAssignmentQuery = `
+router.post(
+  "/giveAssignment",
+  authenticateToken,
+  checkAssignmentAuthorization,
+  async (req, res) => {
+    const { className, description, marks, dueDate, course_no } = req.body;
+    if (!className) {
+      return res.status(400).send("Missing required field: className");
+    }
+    if (!description) {
+      return res.status(400).send("Missing required field: description");
+    }
+    if (!marks) {
+      return res.status(400).send("Missing required field: marks");
+    }
+    if (!dueDate) {
+      return res.status(400).send("Missing required field: dueDate");
+    }
+    if (!course_no) {
+      return res.status(400).send("Missing required field: course_no");
+    }
+    const tableName = `assignment_${className}`; // table for assignments
+    const marksTableName = `assignment_marks_${className}`; // table for assignment marks
+    console.log("table name:", tableName);
+    const staff_no = req.user.staff_no;
+    try {
+      // Insert the assignment and return the assignment number
+      const insertAssignmentQuery = `
       INSERT INTO ${tableName} (description, marks, due_date, staff_no, course_no)
       VALUES ($1, $2, $3, $4, $5)
       RETURNING assignment_no;
     `;
-    const assignmentResult = await db.query(insertAssignmentQuery, [
-      description,
-      marks,
-      dueDate,
-      staff_no,
-      course_no,
-    ]);
-    const assignment_no = assignmentResult.rows[0].assignment_no;
+      const assignmentResult = await db.query(insertAssignmentQuery, [
+        description,
+        marks,
+        dueDate,
+        staff_no,
+        course_no,
+      ]);
+      const assignment_no = assignmentResult.rows[0].assignment_no;
 
-    // Fetch all students in the class and set their marks to NULL
-    const fetchStudentsQuery = `
+      // Fetch all students in the class and set their marks to NULL
+      const fetchStudentsQuery = `
       SELECT register_no FROM student WHERE class = $1 ORDER BY name;
     `;
-    const studentsResult = await db.query(fetchStudentsQuery, [className]);
+      const studentsResult = await db.query(fetchStudentsQuery, [className]);
 
-    for (const student of studentsResult.rows) {
-      const insertMarksQuery = `
+      for (const student of studentsResult.rows) {
+        const insertMarksQuery = `
         INSERT INTO ${marksTableName} (register_no, assignment_no, total_marks, award_marks)
         VALUES ($1, $2, $3, $4);
       `;
-      await db.query(insertMarksQuery, [
-        student.register_no,
-        assignment_no,
-        marks,
-        null, // Use null instead of NULL for JavaScript
-      ]);
-    }
+        await db.query(insertMarksQuery, [
+          student.register_no,
+          assignment_no,
+          marks,
+          null, // Use null instead of NULL for JavaScript
+        ]);
+      }
 
-    res.status(200).send("Assignment added successfully");
-  } catch (err) {
-    console.error("Error adding assignment:", err);
-    res.status(500).send("Server error");
-  }
-});
+      res.status(200).send("Assignment added successfully");
+    } catch (err) {
+      console.error("Error adding assignment:", err);
+      res.status(500).send("Server error");
+    }
+  },
+);
 
 router.get("/getAssignmentByClass", authenticateToken, async (req, res) => {
   const { className } = req.body;
@@ -522,7 +546,18 @@ router.get("/showClasses", authenticateToken, async (req, res) => {
     res.status(200).send(result.rows);
   }
 });
-
+router.get("/selfDetails", authenticateToken, async (req, res, next) => {
+  const staff_no = req.user.staff_no;
+  try {
+    const result = await db.query(`SELECT * FROM staff WHERE staff_no=$1`, [
+      staff_no,
+    ]);
+    res.status(200).send(result.rows[0]);
+  } catch (err) {
+    console.error("Error fetching staff details:", err);
+    res.status(500).send("Server error");
+  }
+});
 router.put("/changePassword", authenticateToken, async (req, res) => {
   const staff_id = req.user.staff_no;
   const newPassword = req.body.newPassword;
@@ -618,13 +653,18 @@ async function checkAssignmentAuthorization(req, res, next) {
     // Check if the specified class exists in courseCharges and contains the course_no
     var isAuthorized = false;
     for (const courseKey in course_charges) {
-      if (course_charges[courseKey].includes(className) && courseKey === course_no) {
+      if (
+        course_charges[courseKey].includes(className) &&
+        courseKey === course_no
+      ) {
         isAuthorized = true;
         break;
       }
     }
     if (!isAuthorized) {
-      return res.status(403).send("Not authorized to assign this course for the class");
+      return res
+        .status(403)
+        .send("Not authorized to assign this course for the class");
     }
 
     next();
@@ -646,7 +686,7 @@ async function checkSchedule(req, res, next) {
     // Query to get the schedule for the given day
     const result = await db.query(
       `SELECT hours FROM ${tableName} WHERE day = $1`,
-      [day]
+      [day],
     );
 
     if (result.rows.length === 0) {
@@ -656,7 +696,9 @@ async function checkSchedule(req, res, next) {
     // Check if the course_no matches the specified hour in the schedule
     const scheduledCourse = result.rows[0].hours[hour - 1];
     if (scheduledCourse !== course_no) {
-      return res.status(403).send("Course is not scheduled for the specified hour.");
+      return res
+        .status(403)
+        .send("Course is not scheduled for the specified hour.");
     }
 
     next();
@@ -668,4 +710,4 @@ async function checkSchedule(req, res, next) {
 
 module.exports = router;
 
-//I hope this shit works pt.😭3
+//I hope this shit works pt.😭4
