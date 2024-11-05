@@ -326,7 +326,7 @@ router.post(
     if (!className || !date_of_att || !day || !hour || !course_no) {
       return res.status(400).send("Missing required fields");
     }
-
+    className = className.toLowerCase();
     const tableName = `attendence_${className}`;
     try {
       // Check if attendance already exists for the specified date, day, hour, and course_no
@@ -408,12 +408,12 @@ router.post(
     if (!course_no) {
       return res.status(400).send("Missing required field: course_no");
     }
-    const tableName = `assignment_${className}`; // table for assignments
-    const marksTableName = `assignment_marks_${className}`; // table for assignment marks
+    className = className.toLowerCase();
+    const tableName = `assignment_${className}`;
+    const marksTableName = `assignment_marks_${className}`;
     console.log("table name:", tableName);
     const staff_no = req.user.staff_no;
     try {
-      // Insert the assignment and return the assignment number
       const insertAssignmentQuery = `
       INSERT INTO ${tableName} (description, marks, due_date, staff_no, course_no)
       VALUES ($1, $2, $3, $4, $5)
@@ -463,6 +463,7 @@ router.get(
     if (!className) {
       return res.status(400).send("Missing required fields");
     }
+    className = className.toLowerCase();
     const tableName = `assignment_${className}`;
     try {
       const result = await db.query(`SELECT * FROM ${tableName}`);
@@ -483,6 +484,7 @@ router.delete("/deleteAssignment", authenticateToken, async (req, res) => {
   if (!className || !assignment_no) {
     return res.status(400).send("Missing required fields");
   }
+  className = className.toLowerCase();
   const tableName = `assignment_${className}`;
   try {
     const classCheckQuery = `SELECT 1 FROM information_schema.tables WHERE table_name = $1`;
@@ -514,6 +516,7 @@ router.post("/markAssignment", authenticateToken, async (req, res) => {
       .status(400)
       .send("Missing required fields or invalid marks format");
   }
+  className = className.toLowerCase();
   const markstableName = `assignment_marks_${className}`;
   try {
     // Loop through each student's marks and update them
@@ -538,6 +541,7 @@ router.post("/getMarks", authenticateToken, async (req, res) => {
   if (!className || !assignment_no) {
     return res.status(400).send("Missing required fields");
   }
+  className = className.toLowerCase();
   const tableName = `assignment_marks_${className}`;
   try {
     const result = await db.query(
@@ -616,6 +620,7 @@ router.post("/updateAttendance", authenticateToken, async (req, res) => {
       .status(400)
       .send("Missing required fields or invalid attendance format");
   }
+  className = className.toLowerCase();
   const tableName = `attendence_${className}`;
   try {
     // Loop through the attendance array and update each student's attendance
