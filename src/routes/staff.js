@@ -322,7 +322,7 @@ router.post(
   checkAssignmentAuthorization,
   checkSchedule,
   async (req, res) => {
-    const { className, date_of_att, day, hour, course_no } = req.body;
+    let { className, date_of_att, day, hour, course_no } = req.body;
     if (!className || !date_of_att || !day || !hour || !course_no) {
       return res.status(400).send("Missing required fields");
     }
@@ -394,7 +394,7 @@ router.post(
   authenticateToken,
   checkAssignmentAuthorization,
   async (req, res) => {
-    const { className, description, marks, dueDate, course_no } = req.body;
+    let { className, description, marks, dueDate, course_no } = req.body;
     if (!className) {
       return res.status(400).send("Missing required field: className");
     }
@@ -461,7 +461,7 @@ router.get(
   "/getAssignmentByClass/:className",
   authenticateToken,
   async (req, res) => {
-    const className = req.params.className;
+    let className = req.params.className;
     if (!className) {
       return res.status(400).send("Missing required fields");
     }
@@ -487,7 +487,7 @@ router.get(
 
 //   })
 router.delete("/deleteAssignment", authenticateToken, async (req, res) => {
-  const { className, assignment_no } = req.body;
+  let { className, assignment_no } = req.body;
   if (!className || !assignment_no) {
     return res.status(400).send("Missing required fields");
   }
@@ -517,7 +517,7 @@ router.delete("/deleteAssignment", authenticateToken, async (req, res) => {
 });
 
 router.post("/markAssignment", authenticateToken, async (req, res) => {
-  const { className, assignment_no, marks } = req.body;
+  let { className, assignment_no, marks } = req.body;
   if (!className || !assignment_no || !marks || !Array.isArray(marks)) {
     return res
       .status(400)
@@ -544,7 +544,7 @@ router.post("/markAssignment", authenticateToken, async (req, res) => {
 });
 
 router.post("/getMarks", authenticateToken, async (req, res) => {
-  const { className, assignment_no } = req.body;
+  let { className, assignment_no } = req.body;
   if (!className || !assignment_no) {
     return res.status(400).send("Missing required fields");
   }
@@ -613,7 +613,7 @@ router.put("/changePassword", authenticateToken, async (req, res) => {
 });
 
 router.post("/updateAttendance", authenticateToken, async (req, res) => {
-  const { className, date_of_att, day, hour, course_no, attendance } = req.body;
+  let { className, date_of_att, day, hour, course_no, attendance } = req.body;
   if (
     !className ||
     !date_of_att ||
