@@ -238,7 +238,7 @@ router.get("/viewSchedule", authenticateToken, async (req, res, next) => {
     if (classNa.rows.length === 0) {
       return res.status(404).send("No schedule found");
     }
-    const className = classNa.rows[0].class;
+    const className = classNa.rows[0].class.toLowercase();
     const query = `
       SELECT day, hours
       FROM schedule_${className}
