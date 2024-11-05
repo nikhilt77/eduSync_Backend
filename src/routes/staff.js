@@ -52,22 +52,26 @@ router.post("/login", async (req, res) => {
     res.json(token);
   }
 });
-router.get("/getStudentByClass", authenticateToken, async (req, res, next) => {
-  try {
-    const { studentClass } = req.body;
-    const query =
-      "SELECT name, class, date_of_birth, phone_number, register_no FROM student WHERE class=$1 ORDER BY name";
-    const values = [studentClass];
-    const result = await db.query(query, values);
-    if (result.rows.length === 0) {
-      res.status(404).send("No students found");
-    } else {
-      res.status(200).send(result.rows);
+router.get(
+  "/getStudentByClass/:studentClass",
+  authenticateToken,
+  async (req, res, next) => {
+    try {
+      const studentClass = req.params.studentClass;
+      const query =
+        "SELECT name, class, date_of_birth, phone_number, register_no FROM student WHERE class=$1 ORDER BY name";
+      const values = [studentClass];
+      const result = await db.query(query, values);
+      if (result.rows.length === 0) {
+        res.status(404).send("No students found");
+      } else {
+        res.status(200).send(result.rows);
+      }
+    } catch (err) {
+      next(err);
     }
-  } catch (err) {
-    next(err);
-  }
-});
+  },
+);
 
 router.get("/getStudentById", authenticateToken, async (req, res, next) => {
   try {
@@ -197,9 +201,9 @@ router.get(
   "/viewSchedule/:className",
   authenticateToken,
   async (req, res, next) => {
+    const className = req.params.className;
     try {
       //const { className } = req.body; //input the class name whose schedule is to be viewed
-      const className = req.params.className;
       const tableName = `schedule_${className}`;
       const result = await db.query(`SELECT * FROM ${tableName}`);
       if (result.rowCount === 0) {
