@@ -73,26 +73,30 @@ router.get(
   },
 );
 
-router.get("/getStudentById", authenticateToken, async (req, res, next) => {
-  try {
-    const { register_no } = req.body;
-    if (!register_no) {
-      return res.status(400).send("Register number is required");
-    }
-    const query =
-      "SELECT name, class, date_of_birth, phone_number, register_no FROM student WHERE register_no=$1";
-    const values = [register_no];
-    const result = await db.query(query, values);
+router.get(
+  "/getStudentById/:register_no",
+  authenticateToken,
+  async (req, res, next) => {
+    try {
+      const register_no = req.params.register_no;
+      if (!register_no) {
+        return res.status(400).send("Register number is required");
+      }
+      const query =
+        "SELECT name, class, date_of_birth, phone_number, register_no FROM student WHERE register_no=$1";
+      const values = [register_no];
+      const result = await db.query(query, values);
 
-    if (result.rows.length === 0) {
-      res.status(404).send("Student not found");
-    } else {
-      res.status(200).send(result.rows[0]);
+      if (result.rows.length === 0) {
+        res.status(404).send("Student not found");
+      } else {
+        res.status(200).send(result.rows[0]);
+      }
+    } catch (err) {
+      next(err);
     }
-  } catch (err) {
-    next(err);
-  }
-});
+  },
+);
 
 router.post("/addStudents", authenticateToken, async (req, res, next) => {
   try {
@@ -551,6 +555,14 @@ router.get("/showClasses", authenticateToken, async (req, res) => {
   const result = await db.query("SELECT * FROM classes");
   if (result.rows.length === 0) {
     res.status(404).send("No classes found");
+  } else {
+    res.status(200).send(result.rows);
+  }
+});
+router.get("/showCourses", async (req, res) => {
+  const result = await db.query("SELECT * FROM courses");
+  if (result.rows.length === 0) {
+    res.status(404).send("No courses found");
   } else {
     res.status(200).send(result.rows);
   }
