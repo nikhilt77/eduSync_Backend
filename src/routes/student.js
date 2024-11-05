@@ -265,13 +265,15 @@ router.get(
   authenticateToken,
   async (req, res, next) => {
     const register_no = req.user.register_no;
-    const className = await db.query(
+
+    const classNameResult = await db.query(
       `SELECT class FROM student WHERE register_no=$1`,
       [register_no],
     );
-    if (!className) {
+    if (classNameResult.rows.length === 0) {
       return res.status(400).json({ error: "Class name is required" });
     }
+    const className = classNameResult.rows[0].class;
     try {
       const result = await db.query(
         `

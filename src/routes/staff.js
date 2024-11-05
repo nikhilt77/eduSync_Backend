@@ -193,21 +193,26 @@ router.put("/updateStudent", authenticateToken, async (req, res, next) => {
   }
 });
 
-router.get("/viewSchedule", authenticateToken, async (req, res, next) => {
-  try {
-    const { className } = req.body; //input the class name whose schedule is to be viewed
-    const tableName = `schedule_${className}`;
-    const result = await db.query(`SELECT * FROM ${tableName}`);
-    if (result.rowCount === 0) {
-      res.status(404).send("No schedule found for the given class");
-    } else {
-      res.status(200).send(result.rows);
+router.get(
+  "/viewSchedule/:className",
+  authenticateToken,
+  async (req, res, next) => {
+    try {
+      //const { className } = req.body; //input the class name whose schedule is to be viewed
+      const className = req.params.className;
+      const tableName = `schedule_${className}`;
+      const result = await db.query(`SELECT * FROM ${tableName}`);
+      if (result.rowCount === 0) {
+        res.status(404).send("No schedule found for the given class");
+      } else {
+        res.status(200).send(result.rows);
+      }
+    } catch (err) {
+      res.status(500).send("No schedule found for the given class");
+      next(err);
     }
-  } catch (err) {
-    res.status(500).send("No schedule found for the given class");
-    next(err);
-  }
-});
+  },
+);
 
 router.post("/addSchedule", authenticateToken, async (req, res) => {
   const { schedule, className } = req.body;
@@ -310,7 +315,6 @@ router.post(
   checkSchedule,
   async (req, res) => {
     const { className, date_of_att, day, hour, course_no } = req.body;
-
     if (!className || !date_of_att || !day || !hour || !course_no) {
       return res.status(400).send("Missing required fields");
     }
@@ -325,6 +329,7 @@ router.post(
 
       // If attendance already exists
       if (result.rows.length > 0) {
+        res.send(result.rows[0]);
         return res
           .status(409)
           .send("Attendance already exists for the specified parameters.");
