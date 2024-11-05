@@ -334,10 +334,9 @@ router.post(
         `SELECT * FROM ${tableName} WHERE date_of_att = $1 AND day = $2 AND hour = $3 AND course_no = $4`,
         [date_of_att, day, hour, course_no],
       );
-
       // If attendance already exists
       if (result.rows.length > 0) {
-        res.send(result.rows[0]);
+        res.send(result.rows);
         /*return res
           .status(409)
           .send("Attendance already exists for the specified parameters.");*/
@@ -355,8 +354,11 @@ router.post(
             [date_of_att, day, student.register_no, course_no, hour, true],
           );
         }
-
-        res.status(200).send("Attendance recorded successfully.");
+        const result2 = await db.query(
+          `SELECT * FROM ${tableName} WHERE date_of_att = $1 AND day = $2 AND hour = $3 AND course_no = $4`,
+          [date_of_att, day, hour, course_no],
+        );
+        res.status(200).send(result2.rows);
       }
     } catch (err) {
       console.error("Error recording attendance:", err);
@@ -478,7 +480,12 @@ router.get(
     }
   },
 );
+// router.get("/getAssignmentByStaff", authenticateToken, async (req, res) => {
+//   const staff_no = req.user.staff_no;
+//   const classesQuery = `SELECT class FROM staff WHERE staff_no = $1`;
+//   try {
 
+//   })
 router.delete("/deleteAssignment", authenticateToken, async (req, res) => {
   const { className, assignment_no } = req.body;
   if (!className || !assignment_no) {
@@ -623,7 +630,6 @@ router.post("/updateAttendance", authenticateToken, async (req, res) => {
   className = className.toLowerCase();
   const tableName = `attendence_${className}`;
   try {
-    // Loop through the attendance array and update each student's attendance
     for (const { register_no, att } of attendance) {
       const updateQuery = `
         UPDATE ${tableName}
