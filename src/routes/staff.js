@@ -654,7 +654,7 @@ router.put("/changePassword", authenticateToken, async (req, res) => {
   }
 });
 
-router.post("/updateAttendance", authenticateToken, async (req, res) => {
+router.put("/updateAttendance", authenticateToken, async (req, res) => {
   let { className, date_of_att, day, hour, course_no, attendance } = req.body;
   if (
     !className ||
