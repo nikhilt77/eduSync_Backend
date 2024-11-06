@@ -112,15 +112,15 @@ router.post(
               "Staff member already exists with the same name and in-charge-of department",
             );
         }
-
-        const query2 = "SELECT * FROM classes where class = $1";
-        const values2 = [in_charge_of];
-        const result2 = await db.query(query2, values2);
-        if (result2.rows.length === 0) {
-          const insertClassQuery =
-            "INSERT INTO classes(class) VALUES (UPPER($1))";
-          await db.query(insertClassQuery, [in_charge_of]);
-          const query3 = `CREATE TABLE IF NOT EXISTS public.schedule_${in_charge_of}
+        if (in_charge_of != null) {
+          const query2 = "SELECT * FROM classes where class = $1";
+          const values2 = [in_charge_of];
+          const result2 = await db.query(query2, values2);
+          if (result2.rows.length === 0) {
+            const insertClassQuery =
+              "INSERT INTO classes(class) VALUES (UPPER($1))";
+            await db.query(insertClassQuery, [in_charge_of]);
+            const query3 = `CREATE TABLE IF NOT EXISTS public.schedule_${in_charge_of}
         (
             day character varying(10) COLLATE pg_catalog."default" NOT NULL,
             hours character varying(25)[] COLLATE pg_catalog."default",
@@ -130,8 +130,8 @@ router.post(
 
             ALTER TABLE IF EXISTS public.schedule_${in_charge_of}
                 OWNER to ${process.env.postgresusername};`;
-          const result3 = await db.query(query3);
-          const query4 = `CREATE TABLE IF NOT EXISTS public.attendence_${in_charge_of}
+            const result3 = await db.query(query3);
+            const query4 = `CREATE TABLE IF NOT EXISTS public.attendence_${in_charge_of}
           (
               att_id integer NOT NULL GENERATED ALWAYS AS IDENTITY (INCREMENT 1 START 1 MINVALUE 1 MAXVALUE 2147483647 CACHE 1),
               date_of_att date,
@@ -157,8 +157,8 @@ router.post(
           ALTER TABLE IF EXISTS public.attendence_${in_charge_of}
               OWNER to ${process.env.postgresusername};
 `;
-          const result4 = await db.query(query4);
-          const query5 = `CREATE TABLE IF NOT EXISTS public.assignment_${in_charge_of}
+            const result4 = await db.query(query4);
+            const query5 = `CREATE TABLE IF NOT EXISTS public.assignment_${in_charge_of}
         (
             assignment_no integer NOT NULL GENERATED ALWAYS AS IDENTITY ( INCREMENT 1 START 1 MINVALUE 1 MAXVALUE 2147483647 CACHE 1 ),
             description character varying(1000) COLLATE pg_catalog."default",
@@ -183,8 +183,8 @@ router.post(
 
         ALTER TABLE IF EXISTS public.assignment_${in_charge_of}
             OWNER to ${process.env.postgresusername};`;
-          const result5 = await db.query(query5);
-          const query6 = `CREATE TABLE IF NOT EXISTS public.assignment_marks_${in_charge_of}
+            const result5 = await db.query(query5);
+            const query6 = `CREATE TABLE IF NOT EXISTS public.assignment_marks_${in_charge_of}
         (
             assign_m_no integer NOT NULL GENERATED ALWAYS AS IDENTITY ( INCREMENT 1 START 1 MINVALUE 1 MAXVALUE 2147483647 CACHE 1 ),
             total_marks integer,
@@ -208,13 +208,14 @@ router.post(
 
         ALTER TABLE IF EXISTS public.assignment_marks_${in_charge_of}
             OWNER to ${process.env.postgresusername};`;
-          try {
-            const result6 = await db.query(query6);
-          } catch (err) {
-            console.error("Error creating assignment_marks table:", err);
+            try {
+              const result6 = await db.query(query6);
+            } catch (err) {
+              console.error("Error creating assignment_marks table:", err);
+            }
           }
+          console.log("Table created successfully");
         }
-        console.log("Table created successfully");
         const query =
           "INSERT INTO staff(name,in_charge_of,course_charges,password) VALUES($1,$2,$3,$4) RETURNING *";
         const values = [name, in_charge_of, course_charges, password];

@@ -336,6 +336,7 @@ router.post(
       );
       // If attendance already exists
       if (result.rows.length > 0) {
+        console.log("Attendance already exists for the specified parameters.");
         res.send(result.rows);
         /*return res
           .status(409)
