@@ -8,12 +8,7 @@ router.get("/", (req, res) => {
   res.send("GET /staff");
 });
 
-const db = new Client({
-  connectionString: process.env.DATABASE_URL,
-  ssl: {
-    rejectUnauthorized: false,
-  },
-});
+const db = require("./db");
 
 db.connect();
 
