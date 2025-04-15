@@ -8,7 +8,7 @@ router.get("/", (req, res) => {
   res.send("GET /staff");
 });
 
-const db = require("./db");
+const db = require("../db");
 
 db.connect();
 
