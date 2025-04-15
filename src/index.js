@@ -8,13 +8,7 @@ const adminRoutes = require("./routes/admin");
 const studentRoutes = require("./routes/student");
 const staffRoutes = require("./routes/staff");
 const port = process.env.PORT || 3600;
-const { Client } = require("pg");
-const db = new Client({
-  connectionString: process.env.DATABASE_URL,
-  ssl: {
-    rejectUnauthorized: false,
-  },
-});
+const db = require("./db");
 
 
 try {
