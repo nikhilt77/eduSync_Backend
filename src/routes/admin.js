@@ -1,16 +1,16 @@
 const { Router } = require("express");
 const router = Router();
-const pg = require("pg");
+const { Client } = require("pg");
 const jwt = require("jsonwebtoken");
 require("dotenv").config();
 
-const db = new pg.Client({
-  user: process.env.postgresusername,
-  password: process.env.password,
-  host: process.env.host,
-  port: 5432,
-  database: process.env.database,
+const db = new Client({
+  connectionString: process.env.DATABASE_URL,
+  ssl: {
+    rejectUnauthorized: false,
+  },
 });
+
 
 db.connect();
 
